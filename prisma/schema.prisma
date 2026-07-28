@@ -46,12 +46,15 @@ model Player {
 }
 
 model Ground {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  location  String?
-  matches   Match[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  /// Google Maps link for directions.
+  googleMapUrl String?
+  /// Area or town, e.g. "Nandanam, Chennai".
+  location     String?
+  matches      Match[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Tournament {

@@ -129,6 +129,19 @@ export default async function MatchDetailPage({
             <p className="text-[14px] text-label-secondary">
               🏟 {match.ground.name}
               {match.ground.location ? `, ${match.ground.location}` : ""}
+              {match.ground.googleMapUrl ? (
+                <>
+                  {" · "}
+                  <a
+                    href={match.ground.googleMapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-ios-blue"
+                  >
+                    Directions
+                  </a>
+                </>
+              ) : null}
             </p>
             {match.tournament ? (
               <p className="mt-0.5 text-[14px] text-ios-indigo">🏆 {match.tournament.name}</p>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { AddGroundForm, EditGroundButton } from "@/components/GroundForms";
 import { EmptyState, Section } from "@/components/ui/Card";
-import { StadiumIcon } from "@/components/ui/Icons";
+import { PinIcon, StadiumIcon } from "@/components/ui/Icons";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/session";
 
@@ -53,10 +53,26 @@ export default async function GroundsPage() {
                     {g.location ?? "No location set"} · {g._count.matches} match
                     {g._count.matches === 1 ? "" : "es"}
                   </span>
+                  {g.googleMapUrl ? (
+                    <a
+                      href={g.googleMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-medium text-ios-blue"
+                    >
+                      <PinIcon width={12} height={12} strokeWidth={2} />
+                      Directions
+                    </a>
+                  ) : null}
                 </span>
                 {admin ? (
                   <EditGroundButton
-                    ground={{ id: g.id, name: g.name, location: g.location }}
+                    ground={{
+                      id: g.id,
+                      name: g.name,
+                      location: g.location,
+                      googleMapUrl: g.googleMapUrl,
+                    }}
                     matchCount={g._count.matches}
                   />
                 ) : null}

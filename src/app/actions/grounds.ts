@@ -15,6 +15,16 @@ const groundSchema = z.object({
     .max(120)
     .optional()
     .transform((v) => (v ? v : null)),
+  googleMapUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((v) => (v ? v : null))
+    .refine(
+      (v) => v === null || /^https?:\/\//i.test(v),
+      "Paste the full link, starting with https://",
+    ),
 });
 
 function revalidateGrounds() {
@@ -31,6 +41,7 @@ export async function createGroundAction(
     const data = groundSchema.parse({
       name: formData.get("name"),
       location: formData.get("location") ?? "",
+      googleMapUrl: formData.get("googleMapUrl") ?? "",
     });
     await prisma.ground.create({ data });
     revalidateGrounds();
@@ -48,6 +59,7 @@ export async function updateGroundAction(
     const data = groundSchema.parse({
       name: formData.get("name"),
       location: formData.get("location") ?? "",
+      googleMapUrl: formData.get("googleMapUrl") ?? "",
     });
     await prisma.ground.update({ where: { id }, data });
     revalidateGrounds();

@@ -12,7 +12,12 @@ import { ConfirmSubmit, Field, FormMessage, SubmitButton } from "@/components/ui
 import { Sheet } from "@/components/ui/Sheet";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/ui/Icons";
 
-export type GroundValues = { id: number; name: string; location: string | null };
+export type GroundValues = {
+  id: number;
+  name: string;
+  location: string | null;
+  googleMapUrl: string | null;
+};
 
 function Fields({
   initial,
@@ -45,6 +50,25 @@ function Fields({
           maxLength={120}
           placeholder="e.g. Nandanam, Chennai"
           defaultValue={initial?.location ?? ""}
+          className="input"
+        />
+      </Field>
+
+      <Field
+        label="Google Map"
+        htmlFor={`g-map-${key}`}
+        error={fieldErrors.googleMapUrl}
+        hint="Optional. Paste the share link from Google Maps — players get a tappable directions link."
+        className="sm:col-span-2"
+      >
+        <input
+          id={`g-map-${key}`}
+          name="googleMapUrl"
+          type="url"
+          inputMode="url"
+          maxLength={500}
+          placeholder="https://maps.app.goo.gl/…"
+          defaultValue={initial?.googleMapUrl ?? ""}
           className="input"
         />
       </Field>
