@@ -10,6 +10,7 @@ import {
   getUpcomingMatches,
 } from "@/lib/queries";
 import { formatDate, formatMoney, istParts } from "@/lib/format";
+import { describeAdminPin } from "@/lib/auth";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -57,11 +58,15 @@ export async function GET() {
   steps.push(await step("env", () => ({
     node: process.version,
     hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
-    hasAdminPin: Boolean(process.env.ADMIN_PIN),
     authSecretLength: (process.env.AUTH_SECRET ?? "").length,
     commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "unknown",
     tz: process.env.TZ ?? "(unset)",
   })));
+
+  // Shape of the configured PIN — never the value. Distinguishes "the PIN is
+  // what I think it is" from "the variable holds a placeholder, or quotes, or
+  // trailing whitespace".
+  steps.push(await step("admin-pin", () => describeAdminPin()));
 
   // Does this runtime carry the locale data the old code depended on? Answers
   // whether an ICU-related failure is even possible here.

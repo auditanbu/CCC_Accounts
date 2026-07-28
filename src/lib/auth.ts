@@ -24,9 +24,46 @@ function secret(): string {
   return s;
 }
 
+/**
+ * Strips surrounding quotes left by pasting a `KEY="value"` line into a
+ * dashboard's raw editor, which stores the quotes as part of the value.
+ */
+function clean(raw: string): string {
+  const trimmed = raw.trim();
+  const quoted =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  return quoted && trimmed.length >= 2 ? trimmed.slice(1, -1).trim() : trimmed;
+}
+
 function adminPin(): string | null {
   const pin = process.env.ADMIN_PIN;
-  return pin && pin.length > 0 ? pin : null;
+  if (!pin) return null;
+  const cleaned = clean(pin);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * Shape of the configured PIN, for diagnostics. Never returns the value —
+ * only enough to tell "the variable holds what I think it holds" from
+ * "the variable holds something else".
+ */
+export function describeAdminPin(): Record<string, unknown> {
+  const raw = process.env.ADMIN_PIN;
+  if (raw === undefined) return { configured: false, reason: "ADMIN_PIN is not set" };
+  const cleaned = clean(raw);
+  return {
+    configured: cleaned.length > 0,
+    rawLength: raw.length,
+    effectiveLength: cleaned.length,
+    hadSurroundingWhitespace: raw !== raw.trim(),
+    hadWrappingQuotes: raw.trim() !== cleaned && raw.trim().length - cleaned.length >= 2,
+    allDigits: /^\d+$/.test(cleaned),
+    // First and last character only — enough to spot a placeholder like
+    // "change-me-1234" without disclosing the PIN itself.
+    firstChar: cleaned.slice(0, 1),
+    lastChar: cleaned.slice(-1),
+  };
 }
 
 async function hmac(payload: string): Promise<string> {
@@ -84,7 +121,9 @@ export async function verifySessionToken(token: string | undefined | null): Prom
 export function checkPin(candidate: string): boolean {
   const pin = adminPin();
   if (!pin) return false;
-  return safeEqual(candidate.trim(), pin);
+  // Both sides are cleaned the same way, so stray whitespace on either the
+  // typed value or the stored one cannot cause a spurious rejection.
+  return safeEqual(clean(candidate), pin);
 }
 
 export function isAuthConfigured(): boolean {
