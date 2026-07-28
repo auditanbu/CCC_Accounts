@@ -294,6 +294,8 @@ export type TournamentOutstanding = {
   /** Formula 4: totalFee − feePaid. */
   outstanding: number;
   matchCount: number;
+  totalMatches: number | null;
+  grounds: { id: number; name: string; location: string | null }[];
   collection: number;
   expenses: number;
   net: number;
@@ -302,6 +304,7 @@ export type TournamentOutstanding = {
 export async function getTournamentOutstandings(): Promise<TournamentOutstanding[]> {
   const tournaments = await prisma.tournament.findMany({
     include: {
+      grounds: { select: { id: true, name: true, location: true } },
       matches: {
         include: {
           players: { select: { collectedAmount: true } },
@@ -332,7 +335,11 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
       totalFee: round2(t.totalFee),
       feePaid: round2(feePaid),
       outstanding: round2(t.totalFee - feePaid),
+      /** Fixtures actually recorded against this tournament. */
       matchCount: t.matches.length,
+      /** Fixtures it is scheduled to have, when known. */
+      totalMatches: t.totalMatches,
+      grounds: t.grounds,
       collection: round2(collection),
       expenses: round2(expenses),
       net: round2(collection - expenses),

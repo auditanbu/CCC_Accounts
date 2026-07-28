@@ -19,15 +19,24 @@ export type TournamentValues = {
   name: string;
   overs: number;
   totalFee: number;
+  totalMatches: number | null;
+  groundIds: number[];
 };
+
+export type GroundOption = { id: number; name: string; location: string | null };
 
 function Fields({
   initial,
   fieldErrors,
+  grounds,
 }: {
   initial?: TournamentValues;
   fieldErrors: Record<string, string>;
+  grounds: GroundOption[];
 }) {
+  const key = initial?.id ?? "new";
+  const selected = new Set(initial?.groundIds ?? []);
+
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       <Field
@@ -64,13 +73,31 @@ function Fields({
       </Field>
 
       <Field
-        label="Total entry fee ₹"
-        htmlFor={`t-fee-${initial?.id ?? "new"}`}
-        error={fieldErrors.totalFee}
-        className="sm:col-span-2"
+        label="Number of matches"
+        htmlFor={`t-count-${key}`}
+        error={fieldErrors.totalMatches}
+        hint="Optional."
       >
         <input
-          id={`t-fee-${initial?.id ?? "new"}`}
+          id={`t-count-${key}`}
+          name="totalMatches"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={200}
+          placeholder="e.g. 6"
+          defaultValue={initial?.totalMatches ?? ""}
+          className="input"
+        />
+      </Field>
+
+      <Field
+        label="Total entry fee ₹"
+        htmlFor={`t-fee-${key}`}
+        error={fieldErrors.totalFee}
+      >
+        <input
+          id={`t-fee-${key}`}
           name="totalFee"
           type="number"
           inputMode="decimal"
@@ -81,11 +108,50 @@ function Fields({
           className="input"
         />
       </Field>
+
+      <div className="sm:col-span-3">
+        <span className="label">Grounds</span>
+        {grounds.length === 0 ? (
+          <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
+            No grounds yet — add one from the Grounds page, then edit this tournament.
+          </p>
+        ) : (
+          // Checkboxes rather than a multi-select: a native multi-select needs
+          // ctrl-clicking and is close to unusable on a phone.
+          <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl bg-black/[0.03] p-1.5">
+            {grounds.map((g) => (
+              <label
+                key={g.id}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors active:bg-black/[0.04] sm:hover:bg-black/[0.03]"
+              >
+                <input
+                  type="checkbox"
+                  name="groundIds"
+                  value={g.id}
+                  defaultChecked={selected.has(g.id)}
+                  className="h-[20px] w-[20px] shrink-0 cursor-pointer rounded-md border-black/15 accent-ios-blue"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-medium">{g.name}</span>
+                  {g.location ? (
+                    <span className="block truncate text-[12px] text-label-secondary">
+                      {g.location}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+        <p className="mt-1.5 text-[12px] text-label-secondary">
+          Tick every venue this tournament is played at. Optional.
+        </p>
+      </div>
     </div>
   );
 }
 
-export function AddTournamentForm() {
+export function AddTournamentForm({ grounds }: { grounds: GroundOption[] }) {
   const [state, action] = useActionState(createTournamentAction, idleState);
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -106,7 +172,7 @@ export function AddTournamentForm() {
   return (
     <form ref={formRef} action={action} className="card-pad animate-fade-in-up space-y-4">
       <p className="section-title">New tournament</p>
-      <Fields fieldErrors={state.fieldErrors ?? {}} />
+      <Fields fieldErrors={state.fieldErrors ?? {}} grounds={grounds} />
       <FormMessage state={state} />
       <div className="flex gap-2">
         <SubmitButton className="btn-primary flex-1">Add tournament</SubmitButton>
@@ -126,8 +192,10 @@ export function AddTournamentForm() {
  */
 export function NewTournamentButton({
   onCreated,
+  grounds,
 }: {
   onCreated: (tournament: { id: number; name: string; overs?: number }) => void;
+  grounds: GroundOption[];
 }) {
   const [state, action] = useActionState(createTournamentAction, idleState);
   const [open, setOpen] = useState(false);
@@ -158,7 +226,7 @@ export function NewTournamentButton({
           caller outside its own form element — see MatchForm.
         */}
         <form action={action} className="card-pad space-y-4">
-          <Fields fieldErrors={state.fieldErrors ?? {}} />
+          <Fields fieldErrors={state.fieldErrors ?? {}} grounds={grounds} />
           <FormMessage state={state} />
           <SubmitButton className="btn-primary w-full">Create tournament</SubmitButton>
         </form>
@@ -170,9 +238,11 @@ export function NewTournamentButton({
 export function EditTournamentPanel({
   tournament,
   matchCount,
+  grounds,
 }: {
   tournament: TournamentValues;
   matchCount: number;
+  grounds: GroundOption[];
 }) {
   const [state, action] = useActionState(updateTournamentAction, idleState);
   const [deleteState, deleteAction] = useActionState(deleteTournamentAction, idleState);
@@ -193,7 +263,7 @@ export function EditTournamentPanel({
         <div className="space-y-4">
           <form action={action} className="card-pad space-y-4">
             <input type="hidden" name="id" value={tournament.id} />
-            <Fields initial={tournament} fieldErrors={state.fieldErrors ?? {}} />
+            <Fields initial={tournament} fieldErrors={state.fieldErrors ?? {}} grounds={grounds} />
             <FormMessage state={state} />
             <SubmitButton className="btn-primary w-full">Save changes</SubmitButton>
           </form>

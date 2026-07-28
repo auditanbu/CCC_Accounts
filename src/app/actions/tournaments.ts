@@ -15,6 +15,16 @@ const tournamentSchema = z.object({
     .int()
     .refine((v) => (OVERS_OPTIONS as readonly number[]).includes(v), "Pick a valid overs option."),
   totalFee: z.coerce.number().min(0, "Fee can't be negative."),
+  totalMatches: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? Number(v) : null))
+    .refine(
+      (v) => v === null || (Number.isInteger(v) && v > 0 && v <= 200),
+      "Number of matches must be a whole number between 1 and 200.",
+    ),
+  groundIds: z.array(z.coerce.number().int().positive()).default([]),
 });
 
 function revalidateTournaments(id?: number) {
@@ -25,11 +35,14 @@ function revalidateTournaments(id?: number) {
 }
 
 function parse(formData: FormData) {
-  return tournamentSchema.parse({
+  const { groundIds, ...rest } = tournamentSchema.parse({
     name: formData.get("name"),
     overs: formData.get("overs"),
     totalFee: formData.get("totalFee") ?? 0,
+    totalMatches: formData.get("totalMatches") ?? "",
+    groundIds: formData.getAll("groundIds"),
   });
+  return { data: rest, groundIds };
 }
 
 export async function createTournamentAction(
@@ -38,8 +51,10 @@ export async function createTournamentAction(
 ): Promise<ActionState> {
   return runAction(async () => {
     await requireAdmin();
-    const data = parse(formData);
-    const created = await prisma.tournament.create({ data });
+    const { data, groundIds } = parse(formData);
+    const created = await prisma.tournament.create({
+      data: { ...data, grounds: { connect: groundIds.map((id) => ({ id })) } },
+    });
     revalidateTournaments();
     return {
       ok: true,
@@ -56,8 +71,12 @@ export async function updateTournamentAction(
   return runAction(async () => {
     await requireAdmin();
     const id = z.coerce.number().int().parse(formData.get("id"));
-    const data = parse(formData);
-    await prisma.tournament.update({ where: { id }, data });
+    const { data, groundIds } = parse(formData);
+    await prisma.tournament.update({
+      where: { id },
+      // `set` rather than `connect`, so unticking a ground removes it.
+      data: { ...data, grounds: { set: groundIds.map((gid) => ({ id: gid })) } },
+    });
     revalidateTournaments(id);
     return { ok: true, message: "Tournament updated." };
   });

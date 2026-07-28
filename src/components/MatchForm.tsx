@@ -188,6 +188,11 @@ export function MatchForm({
               </select>
 
               <NewTournamentButton
+                grounds={grounds.map((g) => ({
+                  id: g.id,
+                  name: g.name,
+                  location: g.location ?? null,
+                }))}
                 onCreated={(t) => {
                   // Add it locally and select it, so the half-filled match
                   // form survives — a page refresh here would discard it.

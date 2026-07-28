@@ -8,12 +8,20 @@ import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 import { getTournamentOutstandings } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Tournaments" };
 
 export default async function TournamentsPage() {
-  const [tournaments, admin] = await Promise.all([getTournamentOutstandings(), isAdmin()]);
+  const [tournaments, admin, grounds] = await Promise.all([
+    getTournamentOutstandings(),
+    isAdmin(),
+    prisma.ground.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, location: true },
+    }),
+  ]);
 
   const totalFees = tournaments.reduce((s, t) => s + t.totalFee, 0);
   const totalPaid = tournaments.reduce((s, t) => s + t.feePaid, 0);
@@ -41,7 +49,7 @@ export default async function TournamentsPage() {
         </div>
       ) : null}
 
-      {admin ? <AddTournamentForm /> : null}
+      {admin ? <AddTournamentForm grounds={grounds} /> : null}
 
       <Section title={`All tournaments · ${tournaments.length}`}>
         {tournaments.length === 0 ? (
@@ -68,8 +76,23 @@ export default async function TournamentsPage() {
                           {t.name}
                         </h3>
                         <p className="mt-0.5 text-[13px] text-label-secondary">
-                          {t.overs} overs · {t.matchCount} match{t.matchCount === 1 ? "" : "es"}
+                          {t.overs} overs ·{" "}
+                          {t.totalMatches
+                            ? `${t.matchCount} of ${t.totalMatches} matches recorded`
+                            : `${t.matchCount} match${t.matchCount === 1 ? "" : "es"}`}
                         </p>
+                        {t.grounds.length > 0 ? (
+                          <p className="mt-1 flex flex-wrap gap-1">
+                            {t.grounds.map((g) => (
+                              <span
+                                key={g.id}
+                                className="badge bg-ios-green/10 text-[#248A3D]"
+                              >
+                                🏟 {g.name}
+                              </span>
+                            ))}
+                          </p>
+                        ) : null}
                       </div>
                       {admin ? (
                         <EditTournamentPanel
@@ -78,8 +101,11 @@ export default async function TournamentsPage() {
                             name: t.name,
                             overs: t.overs,
                             totalFee: t.totalFee,
+                            totalMatches: t.totalMatches,
+                            groundIds: t.grounds.map((g) => g.id),
                           }}
                           matchCount={t.matchCount}
+                          grounds={grounds}
                         />
                       ) : null}
                     </div>

@@ -52,20 +52,27 @@ model Ground {
   googleMapUrl String?
   /// Area or town, e.g. "Nandanam, Chennai".
   location     String?
+  tournaments  Tournament[] @relation("TournamentGrounds")
   matches      Match[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
 model Tournament {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  overs     Int
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  overs        Int
   /// Entry fee the team owes the organiser for the whole tournament.
-  totalFee  Float    @default(0)
-  matches   Match[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  totalFee     Float    @default(0)
+  /// Fixtures the tournament is scheduled to have. Null when not yet known.
+  /// Distinct from the count of matches actually recorded against it.
+  totalMatches Int?
+  /// Venues this tournament is played across. A tournament often rotates
+  /// between grounds, so this is a list rather than a single venue.
+  grounds      Ground[] @relation("TournamentGrounds")
+  matches      Match[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Match {
