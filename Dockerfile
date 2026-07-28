@@ -31,6 +31,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+# Bind to every interface. Without this the standalone server can listen on
+# localhost only, which is invisible to a platform health check probing the
+# container from outside.
+ENV HOSTNAME=0.0.0.0
 
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
