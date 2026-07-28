@@ -12,6 +12,10 @@
   html {
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
+    /* This is a deliberately light-only design. Declaring the scheme stops
+       browsers with automatic dark mode (Edge, some Chrome builds) from
+       inverting the palette into something the design never accounts for. */
+    color-scheme: light;
   }
 
   body {
