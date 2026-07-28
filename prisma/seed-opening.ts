@@ -14,53 +14,54 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-type Row = { name: string; jersey: number; opening: number; fee?: number };
+type Row = { name: string; opening: number };
 
 /** Owed to the team, from the pending list. */
 const OWES: Row[] = [
-  { name: "Karthik", jersey: 21, opening: 1800 },
-  { name: "Rajkumar", jersey: 22, opening: 1500 },
-  { name: "Prakash", jersey: 9, opening: 1000 },
-  { name: "Raj", jersey: 23, opening: 400 },
-  { name: "Mythish", jersey: 24, opening: 300 },
-  { name: "Santhosh", jersey: 25, opening: 200 },
-  { name: "Jeeva", jersey: 26, opening: 200 },
+  { name: "Karthik", opening: 1800 },
+  { name: "Rajkumar", opening: 1500 },
+  { name: "Prakash", opening: 1000 },
+  { name: "Raj", opening: 400 },
+  { name: "Mythish", opening: 300 },
+  { name: "Santhosh", opening: 200 },
+  { name: "Jeeva", opening: 200 },
 ];
 
 /** Paid in excess — carried as credit, so negative. */
 const CREDIT: Row[] = [
-  { name: "Mohan", jersey: 27, opening: -670 },
-  { name: "Srirangan", jersey: 333, opening: -280 },
-  { name: "Anbu", jersey: 3, opening: -200 },
-  { name: "Madhesh", jersey: 10, opening: -200 },
-  { name: "Mani", jersey: 99, opening: -150 },
+  { name: "Mohan", opening: -670 },
+  { name: "Srirangan", opening: -280 },
+  { name: "Anbu", opening: -200 },
+  { name: "Madhesh", opening: -200 },
+  { name: "Mani", opening: -150 },
 ];
 
 const SQUAD = [...OWES, ...CREDIT];
 
 async function main() {
   console.log("Setting opening balances…\n");
+  const missing: string[] = [];
 
   for (const row of SQUAD) {
     const existing = await prisma.player.findFirst({ where: { name: row.name } });
-    if (existing) {
-      await prisma.player.update({
-        where: { id: existing.id },
-        data: { openingBalance: row.opening },
-      });
-      console.log(`  updated  ${row.name.padEnd(12)} ${row.opening >= 0 ? " " : ""}${row.opening}`);
-    } else {
-      await prisma.player.create({
-        data: {
-          name: row.name,
-          jerseyNumber: row.jersey,
-          defaultMatchFee: row.fee ?? 300,
-          openingBalance: row.opening,
-          status: "ACTIVE",
-        },
-      });
-      console.log(`  created  ${row.name.padEnd(12)} ${row.opening >= 0 ? " " : ""}${row.opening}`);
+    if (!existing) {
+      // Deliberately does not create anyone. Players are added in the app,
+      // where their real jersey number is set; inventing one here would either
+      // collide with a number already in use or plant a wrong one.
+      missing.push(row.name);
+      console.log(`  SKIPPED  ${row.name.padEnd(12)} — no player with this name`);
+      continue;
     }
+    await prisma.player.update({
+      where: { id: existing.id },
+      data: { openingBalance: row.opening },
+    });
+    console.log(`  updated  ${row.name.padEnd(12)} ${row.opening >= 0 ? " " : ""}${row.opening}`);
+  }
+
+  if (missing.length) {
+    console.log(`\n  ! No player matched: ${missing.join(", ")}`);
+    console.log("  ! Add them in the app first, then re-run.");
   }
 
   const agg = await prisma.player.aggregate({ _sum: { openingBalance: true } });
