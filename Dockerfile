@@ -43,13 +43,15 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# `prisma migrate deploy` runs at startup, so the CLI, the schema and the
-# generated client all have to be present in the final image.
+# Migrations are applied at startup by scripts/migrate.mjs, which uses the
+# generated Prisma client rather than the Prisma CLI. The CLI is deliberately
+# not in this image: it depends on @prisma/config, which pulls in effect and
+# its tree — roughly 240MB shipped to run one command at boot — and copying it
+# piecemeal is what produced the missing-.wasm failure this replaced.
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
