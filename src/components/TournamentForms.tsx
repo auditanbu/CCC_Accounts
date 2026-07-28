@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 
+
 import {
   createTournamentAction,
   deleteTournamentAction,
@@ -114,6 +115,55 @@ export function AddTournamentForm() {
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Creates a tournament from inside another form — the match form, where
+ * needing one is discovered mid-flow. Reports the new record back so the
+ * caller can select it immediately, rather than sending the admin to another
+ * page and losing what they had typed.
+ */
+export function NewTournamentButton({
+  onCreated,
+}: {
+  onCreated: (tournament: { id: number; name: string; overs?: number }) => void;
+}) {
+  const [state, action] = useActionState(createTournamentAction, idleState);
+  const [open, setOpen] = useState(false);
+  const handled = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (state.ok && state.created && handled.current !== state.created.id) {
+      handled.current = state.created.id;
+      onCreated(state.created);
+      setOpen(false);
+    }
+  }, [state, onCreated]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="btn-tinted btn-sm shrink-0"
+      >
+        <PlusIcon width={15} height={15} strokeWidth={2.2} />
+        New
+      </button>
+
+      <Sheet open={open} onClose={() => setOpen(false)} title="New tournament">
+        {/*
+          A nested <form> is invalid HTML, so this sheet is rendered by the
+          caller outside its own form element — see MatchForm.
+        */}
+        <form action={action} className="card-pad space-y-4">
+          <Fields fieldErrors={state.fieldErrors ?? {}} />
+          <FormMessage state={state} />
+          <SubmitButton className="btn-primary w-full">Create tournament</SubmitButton>
+        </form>
+      </Sheet>
+    </>
   );
 }
 

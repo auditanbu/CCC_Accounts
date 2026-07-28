@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Glassmorphic overlay that slides up from the bottom on phones and centres
@@ -17,6 +18,13 @@ export function Sheet({
   title: string;
   children: ReactNode;
 }) {
+  // Rendered through a portal so the sheet is never nested inside whatever
+  // opened it. A sheet containing a form would otherwise land inside a caller's
+  // form, and nested <form> elements are invalid — the inner one is dropped and
+  // its submit silently posts the outer form instead.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -32,9 +40,9 @@ export function Sheet({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
@@ -63,6 +71,7 @@ export function Sheet({
 
         <div className="px-4 py-4 pb-safe">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 
 import { idleState, type ActionState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
+import { NewTournamentButton } from "@/components/TournamentForms";
 import { OVERS_OPTIONS } from "@/lib/constants";
 import { istParts, toDateTimeLocalValue } from "@/lib/format";
 
@@ -43,6 +44,9 @@ export function MatchForm({
   const [tournamentId, setTournamentId] = useState<string>(
     initial?.tournamentId ? String(initial.tournamentId) : "",
   );
+  // Local copy so a tournament created from inside this form appears in the
+  // list straight away, without re-fetching and losing the entered values.
+  const [options, setOptions] = useState<Option[]>(tournaments);
 
   const err = state.fieldErrors ?? {};
   const isTournament = matchType === "TOURNAMENT";
@@ -157,30 +161,42 @@ export function MatchForm({
             htmlFor="tournamentId"
             error={err.tournamentId}
             hint={
-              tournaments.length === 0
-                ? "No tournaments yet — add one from the Cups tab."
+              options.length === 0
+                ? "None yet — tap New to create one without leaving this page."
                 : "Overs default to the tournament's format."
             }
           >
-            <select
-              id="tournamentId"
-              name="tournamentId"
-              value={tournamentId}
-              onChange={(e) => {
-                setTournamentId(e.target.value);
-                const picked = tournaments.find((t) => String(t.id) === e.target.value);
-                if (picked?.overs) setOvers(picked.overs);
-              }}
-              className="select"
-            >
-              <option value="">Select a tournament</option>
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.overs ? ` (${t.overs} ov)` : ""}
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select
+                id="tournamentId"
+                name="tournamentId"
+                value={tournamentId}
+                onChange={(e) => {
+                  setTournamentId(e.target.value);
+                  const picked = options.find((t) => String(t.id) === e.target.value);
+                  if (picked?.overs) setOvers(picked.overs);
+                }}
+                className="select flex-1"
+              >
+                <option value="">Select a tournament</option>
+                {options.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.overs ? ` (${t.overs} ov)` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <NewTournamentButton
+                onCreated={(t) => {
+                  // Add it locally and select it, so the half-filled match
+                  // form survives — a page refresh here would discard it.
+                  setOptions((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
+                  setTournamentId(String(t.id));
+                  if (t.overs) setOvers(t.overs);
+                }}
+              />
+            </div>
           </Field>
 
           <Field

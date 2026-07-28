@@ -39,9 +39,13 @@ export async function createTournamentAction(
   return runAction(async () => {
     await requireAdmin();
     const data = parse(formData);
-    await prisma.tournament.create({ data });
+    const created = await prisma.tournament.create({ data });
     revalidateTournaments();
-    return { ok: true, message: `${data.name} added.` };
+    return {
+      ok: true,
+      message: `${data.name} added.`,
+      created: { id: created.id, name: created.name, overs: created.overs },
+    };
   });
 }
 

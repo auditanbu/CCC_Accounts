@@ -6,6 +6,11 @@ export type ActionState = {
   message?: string;
   error?: string;
   fieldErrors?: Record<string, string>;
+  /**
+   * Set by create actions so a caller can act on the new record without a
+   * round trip — used to select a just-created tournament in the match form.
+   */
+  created?: { id: number; name: string; overs?: number };
 };
 
 export const idleState: ActionState = { ok: false };

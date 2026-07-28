@@ -15,7 +15,10 @@ import {
 
 type Tab = {
   href: string;
+  /** Short form for the phone tab bar, where five labels share the width. */
   label: string;
+  /** Full name elsewhere — "Cups" alone did not read as "Tournaments". */
+  longLabel?: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
 };
 
@@ -24,7 +27,7 @@ const TABS: Tab[] = [
   { href: "/matches", label: "Matches", icon: CricketIcon },
   { href: "/schedule", label: "Schedule", icon: CalendarIcon },
   { href: "/players", label: "Players", icon: PeopleIcon },
-  { href: "/tournaments", label: "Cups", icon: TrophyIcon },
+  { href: "/tournaments", label: "Cups", longLabel: "Tournaments", icon: TrophyIcon },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -87,7 +90,7 @@ export function DesktopNav() {
                 : "text-label-secondary hover:bg-black/[0.04] hover:text-label",
             )}
           >
-            {tab.label}
+            {tab.longLabel ?? tab.label}
           </Link>
         );
       })}
