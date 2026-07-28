@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
-import { round2 } from "@/lib/format";
+import { istParts, round2 } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
 /* Time helpers                                                        */
@@ -13,15 +13,10 @@ import { round2 } from "@/lib/format";
  * boundary at midnight IST — a match earlier today still counts as played.
  */
 export function startOfTodayIST(): Date {
-  const now = new Date();
-  const istParts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "Asia/Kolkata",
-  }).format(now);
+  const p = istParts(new Date());
+  const pad = (n: number) => String(n).padStart(2, "0");
   // IST is UTC+5:30, so midnight IST is 18:30 UTC the previous day.
-  return new Date(`${istParts}T00:00:00+05:30`);
+  return new Date(`${p.year}-${pad(p.month)}-${pad(p.day)}T00:00:00+05:30`);
 }
 
 /* ------------------------------------------------------------------ */

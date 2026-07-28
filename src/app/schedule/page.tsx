@@ -5,7 +5,7 @@ import { MatchTypeBadge } from "@/components/MatchCard";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
-import { formatDateLong, formatTime, relativeDay } from "@/lib/format";
+import { formatDateLong, formatMonthYear, formatTime, istParts, relativeDay } from "@/lib/format";
 import { getMatchesSplit } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
@@ -18,11 +18,7 @@ type Row = Awaited<ReturnType<typeof getMatchesSplit>>["played"][number];
 function groupByMonth(matches: Row[]): { key: string; label: string; items: Row[] }[] {
   const groups = new Map<string, { label: string; items: Row[] }>();
   for (const m of matches) {
-    const label = new Intl.DateTimeFormat("en-IN", {
-      month: "long",
-      year: "numeric",
-      timeZone: "Asia/Kolkata",
-    }).format(m.date);
+    const label = formatMonthYear(m.date);
     const existing = groups.get(label);
     if (existing) existing.items.push(m);
     else groups.set(label, { label, items: [m] });
@@ -31,13 +27,8 @@ function groupByMonth(matches: Row[]): { key: string; label: string; items: Row[
 }
 
 function ScheduleRow({ match, showMoney }: { match: Row; showMoney: boolean }) {
-  const dateParts = new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    weekday: "short",
-    timeZone: "Asia/Kolkata",
-  })
-    .formatToParts(match.date)
-    .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+  const p = istParts(match.date);
+  const dateParts = { weekday: p.weekdayShort, day: String(p.day).padStart(2, "0") };
 
   return (
     <li>

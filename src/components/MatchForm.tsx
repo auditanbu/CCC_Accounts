@@ -6,7 +6,7 @@ import { useActionState, useState } from "react";
 import { idleState, type ActionState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { OVERS_OPTIONS } from "@/lib/constants";
-import { toDateTimeLocalValue } from "@/lib/format";
+import { istParts, toDateTimeLocalValue } from "@/lib/format";
 
 type Option = { id: number; name: string; location?: string | null; overs?: number };
 
@@ -240,12 +240,7 @@ export function MatchForm({
 
 /** Today at 8:00 AM IST — the usual start time for weekend games. */
 function defaultDateTimeValue(): string {
-  const now = new Date();
-  const istDate = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "Asia/Kolkata",
-  }).format(now);
-  return `${istDate}T08:00`;
+  const p = istParts(new Date());
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T08:00`;
 }

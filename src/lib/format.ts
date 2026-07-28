@@ -1,88 +1,165 @@
-/** Money and date helpers. Everything renders in IST / INR. */
+/**
+ * Money and date helpers. Everything renders in IST / INR.
+ *
+ * Deliberately free of `Intl`. Minimal Node builds — including the Alpine
+ * images this app is deployed from — ship reduced ICU data, where
+ * `Intl.DateTimeFormat` with `timeZone: 'Asia/Kolkata'` throws RangeError and
+ * the `en-IN` locale silently degrades to US digit grouping. Both are
+ * unacceptable in a ledger, and neither shows up until it is running in the
+ * container.
+ *
+ * India has been UTC+5:30 with no daylight saving since 1945, and Indian digit
+ * grouping is a fixed rule, so both are computed directly here.
+ */
 
-const IST = "Asia/Kolkata";
+/** Fixed offset for Asia/Kolkata. No DST, so a constant is exact. */
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
 
-const inr = new Intl.NumberFormat("en-IN", {
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 0,
-});
+// "Sept", not "Sep" — matches how en-IN abbreviates September, which is what
+// this app rendered before the ICU dependency was removed.
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sept", "Oct", "Nov", "Dec",
+];
+const MONTHS_LONG = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** 1234.5 -> "₹1,234.5", -1500 -> "-₹1,500" (sign before the symbol). */
-export function formatMoney(amount: number): string {
-  const value = round2(amount);
-  return value < 0 ? `-₹${inr.format(Math.abs(value))}` : `₹${inr.format(value)}`;
-}
+export type ISTParts = {
+  year: number;
+  /** 1-12 */
+  month: number;
+  day: number;
+  hour24: number;
+  minute: number;
+  /** 0 = Sunday */
+  weekday: number;
+  monthShort: string;
+  monthLong: string;
+  weekdayShort: string;
+};
 
 /**
- * Plain number, no symbol — used by the WhatsApp export, where the template
- * puts the ₹ in itself, so the sign stays attached to the digits.
+ * Wall-clock components of an instant, in IST.
+ *
+ * Shifts the instant by the offset and then reads UTC components, which is
+ * exactly what a timezone conversion does for a zone without DST.
  */
-export function formatAmount(amount: number): string {
-  return inr.format(round2(amount));
+export function istParts(date: Date | string | number): ISTParts {
+  const shifted = new Date(new Date(date).getTime() + IST_OFFSET_MS);
+  const month = shifted.getUTCMonth();
+  return {
+    year: shifted.getUTCFullYear(),
+    month: month + 1,
+    day: shifted.getUTCDate(),
+    hour24: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+    weekday: shifted.getUTCDay(),
+    monthShort: MONTHS_SHORT[month]!,
+    monthLong: MONTHS_LONG[month]!,
+    weekdayShort: WEEKDAYS_SHORT[shifted.getUTCDay()]!,
+  };
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/* ------------------------------------------------------------------ */
+/* Money                                                               */
+/* ------------------------------------------------------------------ */
 
 /** Floats accumulate noise; snap to paise before displaying or comparing. */
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Indian digit grouping: the last three digits, then pairs.
+ * 1234567 -> "12,34,567"
+ */
+function groupIndian(intPart: string): string {
+  if (intPart.length <= 3) return intPart;
+  const last3 = intPart.slice(-3);
+  const rest = intPart.slice(0, -3);
+  return `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",")},${last3}`;
+}
+
+/** Plain number, no symbol — used by the WhatsApp export. -1500 -> "-1,500" */
+export function formatAmount(amount: number): string {
+  const value = round2(amount);
+  const negative = value < 0;
+  const abs = Math.abs(value);
+  const whole = Math.trunc(abs);
+  // Up to 2 decimals, trailing zeros trimmed, matching the previous output.
+  const frac = round2(abs - whole);
+  const fracStr = frac === 0 ? "" : String(frac).slice(1).replace(/0+$/, "");
+  return `${negative ? "-" : ""}${groupIndian(String(whole))}${fracStr}`;
+}
+
+/** 1234.5 -> "₹1,234.5", -1500 -> "-₹1,500" (sign before the symbol). */
+export function formatMoney(amount: number): string {
+  const value = round2(amount);
+  return value < 0
+    ? `-₹${formatAmount(Math.abs(value))}`
+    : `₹${formatAmount(value)}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dates                                                               */
+/* ------------------------------------------------------------------ */
+
+/** "16 Jun 2026" */
 export function formatDate(date: Date | string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: IST,
-  }).format(new Date(date));
+  const p = istParts(date);
+  return `${pad(p.day)} ${p.monthShort} ${p.year}`;
 }
 
+/** "Tue, 16 June 2026" */
 export function formatDateLong(date: Date | string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: IST,
-  }).format(new Date(date));
+  const p = istParts(date);
+  return `${p.weekdayShort}, ${pad(p.day)} ${p.monthLong} ${p.year}`;
 }
 
+/** "7:30 am" */
 export function formatTime(date: Date | string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: IST,
-  }).format(new Date(date));
+  const p = istParts(date);
+  const suffix = p.hour24 < 12 ? "am" : "pm";
+  const hour12 = p.hour24 % 12 === 0 ? 12 : p.hour24 % 12;
+  return `${hour12}:${pad(p.minute)} ${suffix}`;
 }
 
 export function formatDateTime(date: Date | string): string {
   return `${formatDate(date)}, ${formatTime(date)}`;
 }
 
-/** Value for <input type="datetime-local">, rendered in IST. */
+/** "June 2026" — the heading used to group the schedule. */
+export function formatMonthYear(date: Date | string): string {
+  const p = istParts(date);
+  return `${p.monthLong} ${p.year}`;
+}
+
+/** Value for <input type="datetime-local">, in IST. */
 export function toDateTimeLocalValue(date: Date | string): string {
-  const d = new Date(date);
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: IST,
-  }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+  const p = istParts(date);
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour24)}:${pad(p.minute)}`;
 }
 
 /** "3 days ago" / "in 2 weeks" */
 export function relativeDay(date: Date | string): string {
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
   const diffMs = new Date(date).getTime() - Date.now();
   const days = Math.round(diffMs / 86_400_000);
-  if (Math.abs(days) < 1) return "today";
-  if (Math.abs(days) < 30) return rtf.format(days, "day");
-  if (Math.abs(days) < 365) return rtf.format(Math.round(days / 30), "month");
-  return rtf.format(Math.round(days / 365), "year");
+  const ago = days < 0;
+  const n = Math.abs(days);
+  if (n < 1) return "today";
+  const say = (value: number, unit: string) => {
+    const plural = value === 1 ? unit : `${unit}s`;
+    return ago ? `${value} ${plural} ago` : `in ${value} ${plural}`;
+  };
+  if (n === 1) return ago ? "yesterday" : "tomorrow";
+  if (n < 30) return say(n, "day");
+  if (n < 365) return say(Math.round(n / 30), "month");
+  return say(Math.round(n / 365), "year");
 }
 
 export function initials(name: string): string {
