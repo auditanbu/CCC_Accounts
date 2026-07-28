@@ -21,8 +21,10 @@ export function LoginForm({ next }: { next?: string }) {
           inputMode="numeric"
           autoComplete="current-password"
           autoFocus
-          placeholder="••••••"
-          className="input text-center text-[22px] tracking-[0.4em]"
+          // No dot placeholder here: a fixed run of dots reads as a required
+          // length, and the PIN can be any length the admin chose.
+          placeholder="Enter PIN"
+          className="input text-center text-[19px] tracking-[0.15em] placeholder:text-[15px] placeholder:tracking-normal"
         />
       </Field>
 
