@@ -133,6 +133,23 @@ serving errors.
 `nixpacks.toml` is included as a fallback if you ever switch the service off the
 Dockerfile builder.
 
+### Deploying elsewhere
+
+The app is a standard Next.js server app, so any host that runs Node works. Two
+notes if you stray from Railway:
+
+- **Vercel** — import the repo and set the same three variables. `output:
+  "standalone"` switches itself off when `VERCEL` is set, since Vercel produces
+  its own output format. Nothing runs migrations for you there, so apply them
+  once yourself (`npx prisma migrate deploy` with `DATABASE_URL` pointed at the
+  database).
+- **Serverless hosts + pooled Postgres** — on a platform that starts a fresh
+  function per request (Vercel, Lambda), point `DATABASE_URL` at a connection
+  pooler rather than the database directly, or you will exhaust connections.
+  With Supabase that means the transaction-mode pooler on port 6543 with
+  `?pgbouncer=true&connection_limit=1` appended. A long-lived container
+  (Railway, Fly, a VPS) does not need this.
+
 ---
 
 ## Project layout
