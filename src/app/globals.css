@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* --font-inter is injected by next/font on <html>. */
+    /* Safe-area padding so the sticky tab bar clears the iPhone home indicator. */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-canvas text-label antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* iOS never shows spinners on number fields. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  ::selection {
+    @apply bg-ios-blue/20;
+  }
+}
+
+@layer components {
+  /* ---------- Surfaces ---------- */
+  .card {
+    @apply rounded-2xl bg-surface shadow-card ring-1 ring-black/[0.04];
+  }
+
+  .card-pad {
+    @apply card p-4 sm:p-5;
+  }
+
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl backdrop-saturate-150;
+  }
+
+  /* Grouped inset list, the iOS Settings pattern. */
+  .list-group {
+    @apply overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-black/[0.04];
+  }
+
+  .list-row {
+    @apply flex items-center gap-3 px-4 py-3 transition-colors;
+  }
+
+  .list-row + .list-row {
+    @apply border-t border-separator/70;
+  }
+
+  .list-row-link {
+    @apply list-row active:bg-black/[0.035] sm:hover:bg-black/[0.025];
+  }
+
+  /* ---------- Typography ---------- */
+  .section-title {
+    @apply px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-label-secondary;
+  }
+
+  .page-title {
+    @apply text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[32px];
+  }
+
+  /* Tabular figures keep money columns from jittering. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* ---------- Controls ---------- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-[15px] font-semibold transition-all duration-150
+           active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply btn bg-ios-blue text-white shadow-sm sm:hover:bg-[#0071eb];
+  }
+
+  .btn-secondary {
+    @apply btn bg-black/[0.05] text-label sm:hover:bg-black/[0.08];
+  }
+
+  .btn-tinted {
+    @apply btn bg-ios-blue/10 text-ios-blue sm:hover:bg-ios-blue/[0.16];
+  }
+
+  .btn-destructive {
+    @apply btn bg-ios-red/10 text-ios-red sm:hover:bg-ios-red/[0.16];
+  }
+
+  .btn-success {
+    @apply btn bg-ios-green text-white shadow-sm sm:hover:bg-[#2fb350];
+  }
+
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-[13px];
+  }
+
+  .input {
+    @apply w-full rounded-xl border-0 bg-black/[0.04] px-3.5 py-2.5 text-[16px] text-label
+           ring-1 ring-inset ring-transparent transition-shadow
+           placeholder:text-label-tertiary
+           focus:bg-white focus:outline-none focus:ring-2 focus:ring-ios-blue;
+  }
+
+  .select {
+    @apply input appearance-none bg-[length:16px] bg-[right_0.85rem_center] bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238E8E93'%3E%3Cpath d='M4.5 6.5 8 10l3.5-3.5'  stroke='%238E8E93' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .label {
+    @apply mb-1.5 block text-[13px] font-medium text-label-secondary;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold;
+  }
+
+  .field-error {
+    @apply mt-1.5 text-[13px] font-medium text-ios-red;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: calc(1rem + var(--safe-bottom));
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

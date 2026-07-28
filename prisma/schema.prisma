@@ -1,0 +1,116 @@
+// Eleven Super Kings — match & finance ledger
+// Replaces the legacy Excel workbook.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlayerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MatchType {
+  TOURNAMENT
+  PRACTICE
+}
+
+enum PaymentMode {
+  UPI
+  CASH
+}
+
+model Player {
+  id              Int           @id @default(autoincrement())
+  name            String
+  jerseyNumber    Int           @unique
+  mobileNumber    String?
+  status          PlayerStatus  @default(ACTIVE)
+  /// Standard per-match contribution for this player (₹100 or ₹200).
+  defaultMatchFee Float         @default(100)
+  matchPlayers    MatchPlayer[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+}
+
+model Ground {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  location  String?
+  matches   Match[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tournament {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  overs     Int
+  /// Entry fee the team owes the organiser for the whole tournament.
+  totalFee  Float    @default(0)
+  matches   Match[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Match {
+  id           Int            @id @default(autoincrement())
+  date         DateTime
+  matchType    MatchType      @default(PRACTICE)
+  /// Fixture number within a tournament (null for practice matches).
+  matchNumber  Int?
+  overs        Int            @default(20)
+  opponentTeam String
+  groundId     Int
+  ground       Ground         @relation(fields: [groundId], references: [id])
+  tournamentId Int?
+  tournament   Tournament?    @relation(fields: [tournamentId], references: [id])
+  notes        String?
+  players      MatchPlayer[]
+  expenses     MatchExpense[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([date])
+  @@index([tournamentId])
+}
+
+model MatchPlayer {
+  id               Int          @id @default(autoincrement())
+  matchId          Int
+  match            Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId         Int
+  player           Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// What this player owes for this match — their default fee when present, 0 when absent.
+  payableAmount    Float        @default(0)
+  collectedAmount  Float        @default(0)
+  paymentMode      PaymentMode?
+  isPresent        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+}
+
+model MatchExpense {
+  id        Int      @id @default(autoincrement())
+  matchId   Int
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  /// One of the predefined categories, or free text when "Others" is picked.
+  category  String
+  amount    Float
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matchId])
+  @@index([category])
+}
