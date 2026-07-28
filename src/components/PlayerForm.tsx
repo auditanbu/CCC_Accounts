@@ -16,6 +16,7 @@ export type PlayerValues = {
   mobileNumber: string | null;
   status: "ACTIVE" | "INACTIVE";
   defaultMatchFee: number;
+  openingBalance: number;
 };
 
 function Fields({
@@ -116,6 +117,24 @@ function Fields({
           Filled in automatically when this player is picked for a match.
         </p>
       </div>
+
+      <Field
+        label="Opening balance ₹"
+        htmlFor={`opening-${initial?.id ?? "new"}`}
+        error={fieldErrors.openingBalance}
+        hint="Carried over from the old ledger. Positive if they owe, negative if they've paid excess. Counts towards their pending total."
+      >
+        <input
+          id={`opening-${initial?.id ?? "new"}`}
+          name="openingBalance"
+          type="number"
+          inputMode="decimal"
+          step="1"
+          placeholder="0"
+          defaultValue={initial?.openingBalance ?? ""}
+          className="input"
+        />
+      </Field>
     </>
   );
 }

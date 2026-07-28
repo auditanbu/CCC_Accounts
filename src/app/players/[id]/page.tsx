@@ -40,7 +40,8 @@ export default async function PlayerDetailPage({
   const [ledger, admin] = await Promise.all([getPlayerLedger(playerId), isAdmin()]);
   if (!ledger) notFound();
 
-  const { player, rows, totalPayable, totalCollected, pending, matchesPlayed } = ledger;
+  const { player, rows, totalPayable, totalCollected, openingBalance, pending, matchesPlayed } =
+    ledger;
   const appearances = rows.filter((r) => r.isPresent);
 
   return (
@@ -112,13 +113,34 @@ export default async function PlayerDetailPage({
             </p>
           </div>
         </div>
+        {openingBalance !== 0 ? (
+          <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
+                Opening balance
+              </p>
+              <p className="mt-0.5 text-[12px] text-label-secondary">
+                Brought forward from the old ledger
+              </p>
+            </div>
+            <p className="text-[16px] font-semibold">
+              {openingBalance < 0 ? (
+                <Money value={-openingBalance} tone="positive" />
+              ) : (
+                <Money value={openingBalance} tone="negative" />
+              )}
+            </p>
+          </div>
+        ) : null}
+
         <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
               {pending < 0 ? "Credit balance" : "Outstanding"}
             </p>
             <p className="mt-0.5 text-[12px] text-label-secondary">
-              Payable − paid across {matchesPlayed} match{matchesPlayed === 1 ? "" : "es"}
+              {openingBalance !== 0 ? "Opening + payable − paid" : "Payable − paid"} across{" "}
+              {matchesPlayed} match{matchesPlayed === 1 ? "" : "es"}
             </p>
           </div>
           <p className="text-[26px] font-bold tracking-[-0.02em]">
@@ -185,6 +207,7 @@ export default async function PlayerDetailPage({
                 mobileNumber: player.mobileNumber,
                 status: player.status,
                 defaultMatchFee: player.defaultMatchFee,
+                openingBalance: player.openingBalance,
               }}
             />
           </Section>

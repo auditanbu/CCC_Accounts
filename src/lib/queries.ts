@@ -39,26 +39,31 @@ export type TeamSummary = {
 export async function getTeamSummary(): Promise<TeamSummary> {
   const today = startOfTodayIST();
 
-  const [playerAgg, expenseAgg, playedCount, upcomingCount, activePlayers] = await Promise.all([
-    prisma.matchPlayer.aggregate({
-      _sum: { payableAmount: true, collectedAmount: true },
-    }),
-    prisma.matchExpense.aggregate({ _sum: { amount: true } }),
-    prisma.match.count({ where: { date: { lt: today } } }),
-    prisma.match.count({ where: { date: { gte: today } } }),
-    prisma.player.count({ where: { status: "ACTIVE" } }),
-  ]);
+  const [playerAgg, expenseAgg, playedCount, upcomingCount, activePlayers, openingAgg] =
+    await Promise.all([
+      prisma.matchPlayer.aggregate({
+        _sum: { payableAmount: true, collectedAmount: true },
+      }),
+      prisma.matchExpense.aggregate({ _sum: { amount: true } }),
+      prisma.match.count({ where: { date: { lt: today } } }),
+      prisma.match.count({ where: { date: { gte: today } } }),
+      prisma.player.count({ where: { status: "ACTIVE" } }),
+      prisma.player.aggregate({ _sum: { openingBalance: true } }),
+    ]);
 
   const totalPayable = round2(playerAgg._sum.payableAmount ?? 0);
   const totalCollected = round2(playerAgg._sum.collectedAmount ?? 0);
   const totalExpenses = round2(expenseAgg._sum.amount ?? 0);
+  const totalOpening = round2(openingAgg._sum.openingBalance ?? 0);
 
   return {
     totalPayable,
     totalCollected,
     totalExpenses,
+    // Brought-forward balances are money owed, not money held, so they move
+    // the pending figure but never the team's cash balance.
     teamBalance: round2(totalCollected - totalExpenses),
-    totalPending: round2(totalPayable - totalCollected),
+    totalPending: round2(totalOpening + totalPayable - totalCollected),
     matchesPlayed: playedCount,
     upcomingCount,
     activePlayers,
@@ -85,10 +90,15 @@ export type PlayerPending = {
   mobileNumber: string | null;
   status: "ACTIVE" | "INACTIVE";
   defaultMatchFee: number;
+  /** Balance carried in from the old ledger. Positive = owes. */
+  openingBalance: number;
   matchesPlayed: number;
   totalPayable: number;
   totalCollected: number;
-  /** Formula 1: payable − collected. Negative means the player overpaid. */
+  /**
+   * Formula 1, plus anything brought forward:
+   * opening + payable − collected. Negative means the player is in credit.
+   */
   pending: number;
 };
 
@@ -128,10 +138,11 @@ export async function getPlayerPendings(): Promise<PlayerPending[]> {
       mobileNumber: p.mobileNumber,
       status: p.status,
       defaultMatchFee: p.defaultMatchFee,
+      openingBalance: round2(p.openingBalance),
       matchesPlayed: appearances.get(p.id) ?? 0,
       totalPayable,
       totalCollected,
-      pending: round2(totalPayable - totalCollected),
+      pending: round2(p.openingBalance + totalPayable - totalCollected),
     };
   });
 }
@@ -166,7 +177,8 @@ export async function getPlayerLedger(playerId: number) {
     rows: player.matchPlayers,
     totalPayable,
     totalCollected,
-    pending: round2(totalPayable - totalCollected),
+    openingBalance: round2(player.openingBalance),
+    pending: round2(player.openingBalance + totalPayable - totalCollected),
     matchesPlayed: player.matchPlayers.filter((mp) => mp.isPresent).length,
   };
 }

@@ -31,8 +31,13 @@ model Player {
   jerseyNumber    Int           @unique
   mobileNumber    String?
   status          PlayerStatus  @default(ACTIVE)
-  /// Standard per-match contribution for this player (₹100 or ₹200).
+  /// Standard per-match contribution for this player.
   defaultMatchFee Float         @default(100)
+  /// Balance carried in from the old ledger, before any match recorded here.
+  /// Positive means the player owes; negative is credit. Counts towards their
+  /// pending figure but not towards the team's cash balance, since it is money
+  /// owed rather than money held.
+  openingBalance  Float         @default(0)
   matchPlayers    MatchPlayer[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

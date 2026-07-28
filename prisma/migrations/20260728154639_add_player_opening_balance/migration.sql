@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Player" ADD COLUMN     "openingBalance" DOUBLE PRECISION NOT NULL DEFAULT 0;

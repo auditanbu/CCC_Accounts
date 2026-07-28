@@ -24,6 +24,8 @@ const playerSchema = z.object({
     .refine((v) => v === null || /^[0-9+\-\s()]{6,20}$/.test(v), "Enter a valid mobile number."),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   defaultMatchFee: z.coerce.number().min(0, "Fee can't be negative."),
+  // May legitimately be negative — that is a player in credit.
+  openingBalance: z.coerce.number().finite("Enter a number."),
 });
 
 function parse(formData: FormData) {
@@ -33,6 +35,7 @@ function parse(formData: FormData) {
     mobileNumber: formData.get("mobileNumber") ?? "",
     status: formData.get("status") ?? "ACTIVE",
     defaultMatchFee: formData.get("defaultMatchFee") ?? 100,
+    openingBalance: formData.get("openingBalance") || 0,
   });
 }
 
