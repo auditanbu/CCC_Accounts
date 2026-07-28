@@ -23,3 +23,7 @@ coverage/
 .vercel
 next-env.d.ts
 *.tsbuildinfo
+
+# Python bytecode from the workbook parser in scripts/
+__pycache__/
+*.py[cod]
