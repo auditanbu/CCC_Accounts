@@ -5,7 +5,7 @@ import { useActionState, useMemo, useState } from "react";
 import { saveRosterAction } from "@/app/actions/matches";
 import { idleState } from "@/app/actions/types";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
-import { formatMoney, initials, round2 } from "@/lib/format";
+import { formatMoney, round2 } from "@/lib/format";
 
 export type RosterRow = {
   playerId: number;
@@ -44,6 +44,10 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
     Object.fromEntries(rows.map((r) => [r.playerId, toDraft(r)])),
   );
+  // Marking who played is the common, fast action; collections are a
+  // separate step tucked behind this so the checklist isn't cluttered by
+  // default.
+  const [showCollections, setShowCollections] = useState(false);
 
   function update(playerId: number, patch: Partial<Draft>) {
     setDrafts((prev) => ({ ...prev, [playerId]: { ...prev[playerId]!, ...patch } }));
@@ -120,12 +124,23 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
           Clear all
         </button>
         <span className="mx-1 hidden w-px self-stretch bg-separator sm:block" />
-        <button type="button" onClick={() => collectAll("UPI")} className="btn-tinted btn-sm">
-          All paid · UPI
+        <button
+          type="button"
+          onClick={() => setShowCollections((v) => !v)}
+          className="btn-tinted btn-sm"
+        >
+          {showCollections ? "Hide collections" : "Record collections"}
         </button>
-        <button type="button" onClick={() => collectAll("CASH")} className="btn-tinted btn-sm">
-          All paid · Cash
-        </button>
+        {showCollections ? (
+          <>
+            <button type="button" onClick={() => collectAll("UPI")} className="btn-tinted btn-sm">
+              All paid · UPI
+            </button>
+            <button type="button" onClick={() => collectAll("CASH")} className="btn-tinted btn-sm">
+              All paid · Cash
+            </button>
+          </>
+        ) : null}
       </div>
 
       <ul className="list-group">
@@ -153,7 +168,7 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
                   }`}
                   aria-hidden
                 >
-                  {initials(row.name)}
+                  {row.jerseyNumber}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span
@@ -177,7 +192,7 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
                 ) : null}
               </label>
 
-              {d.present ? (
+              {d.present && showCollections ? (
                 <div className="mt-3 grid grid-cols-2 gap-2 pl-[34px] sm:grid-cols-3">
                   <div>
                     <span className="mb-1 block text-[11px] font-medium text-label-secondary">
