@@ -18,11 +18,13 @@ const matchSchema = z
   .object({
     date: z
       .string()
-      .min(1, "Pick a date and time.")
-      // <input type="datetime-local"> gives a wall-clock string with no zone;
-      // the team plays in India, so pin it to IST before storing.
-      .transform((v) => new Date(v.length === 16 ? `${v}:00+05:30` : v))
-      .refine((d) => !Number.isNaN(d.getTime()), "That date isn't valid."),
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date.")
+      .refine(isRealCalendarDay, "That date isn't valid."),
+    time: z
+      .string()
+      .trim()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Pick a start time."),
     matchType: z.enum(["TOURNAMENT", "PRACTICE"]),
     matchNumber: z
       .string()
@@ -53,17 +55,35 @@ const matchSchema = z
     message: "Choose which tournament this match belongs to.",
     path: ["tournamentId"],
   })
-  .transform((v) => ({
+  .transform(({ time, ...v }) => ({
     ...v,
+    // The date and time inputs give wall-clock values with no zone; the team
+    // plays in India, so pin them to IST before storing.
+    date: new Date(`${v.date}T${time.slice(0, 5)}:00+05:30`),
     // A practice game never carries tournament metadata, even if the form
     // still had stale values selected when the type was switched.
     tournamentId: v.matchType === "TOURNAMENT" ? v.tournamentId : null,
     matchNumber: v.matchType === "TOURNAMENT" ? v.matchNumber : null,
   }));
 
+/**
+ * Whether a "YYYY-MM-DD" string is a day that exists.
+ *
+ * `new Date()` can't be trusted for this: given an offset it falls back to the
+ * lenient parser, where "2026-02-31" quietly becomes 3 March.
+ */
+function isRealCalendarDay(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day
+  );
+}
+
 function parseMatch(formData: FormData) {
   return matchSchema.parse({
     date: formData.get("date") ?? "",
+    time: formData.get("time") ?? "",
     matchType: formData.get("matchType") ?? "PRACTICE",
     matchNumber: formData.get("matchNumber") ?? "",
     overs: formData.get("overs") ?? 20,
