@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { Fragment, useActionState, useState, type ReactNode } from "react";
 
 import { idleState, type ActionState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
@@ -15,7 +15,14 @@ import {
   upcomingSundays,
 } from "@/lib/format";
 
-type Option = { id: number; name: string; location?: string | null; overs?: number };
+type GroundOption = { id: number; name: string; location?: string | null };
+type TournamentOption = {
+  id: number;
+  name: string;
+  overs?: number;
+  /** Venues the tournament is played at — the ground list is narrowed to these. */
+  groundIds: number[];
+};
 
 export type MatchFormValues = {
   id?: number;
@@ -37,8 +44,8 @@ export function MatchForm({
   submitLabel,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
-  grounds: Option[];
-  tournaments: Option[];
+  grounds: GroundOption[];
+  tournaments: TournamentOption[];
   initial?: MatchFormValues;
   submitLabel: string;
 }) {
@@ -50,9 +57,12 @@ export function MatchForm({
   const [tournamentId, setTournamentId] = useState<string>(
     initial?.tournamentId ? String(initial.tournamentId) : "",
   );
+  const [groundId, setGroundId] = useState<string>(
+    initial?.groundId ? String(initial.groundId) : "",
+  );
   // Local copy so a tournament created from inside this form appears in the
   // list straight away, without re-fetching and losing the entered values.
-  const [options, setOptions] = useState<Option[]>(tournaments);
+  const [options, setOptions] = useState<TournamentOption[]>(tournaments);
 
   const initialDate = initial ? toDateInputValue(initial.date) : null;
   // The list is fixed for the life of the form so the selected option can't
@@ -73,6 +83,270 @@ export function MatchForm({
 
   const err = state.fieldErrors ?? {};
   const isTournament = matchType === "TOURNAMENT";
+
+  const tournament = options.find((t) => String(t.id) === tournamentId) ?? null;
+  const tournamentGrounds = tournament
+    ? grounds.filter((g) => tournament.groundIds.includes(g.id))
+    : [];
+  // A tournament saved without venues shouldn't dead-end the form, so fall back
+  // to every ground rather than offering an empty list.
+  const narrowed = !isTournament
+    ? grounds
+    : tournament === null
+      ? []
+      : tournamentGrounds.length > 0
+        ? tournamentGrounds
+        : grounds;
+  // An existing match may sit at a ground since dropped from its tournament.
+  // Without this the select would render blank while still holding — and
+  // submitting — the saved id.
+  const groundChoices =
+    groundId && !narrowed.some((g) => String(g.id) === groundId)
+      ? [...narrowed, ...grounds.filter((g) => String(g.id) === groundId)]
+      : narrowed;
+
+  /** Clears a ground the newly picked tournament isn't played at. */
+  function keepGroundIfPlayedThere(groundIds: number[]) {
+    if (groundIds.length > 0 && groundId && !groundIds.includes(Number(groundId))) {
+      setGroundId("");
+    }
+  }
+
+  const groundHint = isTournament
+    ? tournament === null
+      ? "Pick the tournament first — its venues load here."
+      : tournamentGrounds.length === 0
+        ? "No venues saved on this tournament — showing every ground."
+        : "Venues this tournament is played at."
+    : grounds.length === 0
+      ? "No grounds yet — add one first."
+      : undefined;
+
+  /*
+   * Every field is keyed and rendered from a single parent, so switching match
+   * type reorders the DOM nodes instead of recreating them — anything already
+   * typed into an uncontrolled input survives the switch.
+   */
+  const fields: Record<string, ReactNode> = {
+    tournament: (
+      <Field
+        label="Tournament"
+        htmlFor="tournamentId"
+        error={err.tournamentId}
+        hint={
+          options.length === 0
+            ? "None yet — tap New to create one without leaving this page."
+            : undefined
+        }
+      >
+        <div className="flex gap-2">
+          <select
+            id="tournamentId"
+            name="tournamentId"
+            value={tournamentId}
+            onChange={(e) => {
+              setTournamentId(e.target.value);
+              const picked = options.find((t) => String(t.id) === e.target.value);
+              // Overs follow the tournament's format but stay editable — a
+              // semi-final is occasionally played over a different number.
+              if (picked?.overs) setOvers(picked.overs);
+              if (picked) keepGroundIfPlayedThere(picked.groundIds);
+            }}
+            className="select flex-1"
+          >
+            <option value="">Select a tournament</option>
+            {options.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.overs ? ` (${t.overs} ov)` : ""}
+              </option>
+            ))}
+          </select>
+
+          <NewTournamentButton
+            grounds={grounds.map((g) => ({
+              id: g.id,
+              name: g.name,
+              location: g.location ?? null,
+            }))}
+            onCreated={(t) => {
+              // Add it locally and select it, so the half-filled match
+              // form survives — a page refresh here would discard it.
+              const created: TournamentOption = { ...t, groundIds: t.groundIds ?? [] };
+              setOptions((prev) =>
+                [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
+              );
+              setTournamentId(String(created.id));
+              if (created.overs) setOvers(created.overs);
+              keepGroundIfPlayedThere(created.groundIds);
+            }}
+          />
+        </div>
+      </Field>
+    ),
+
+    ground: (
+      <Field label="Ground" htmlFor="groundId" error={err.groundId} hint={groundHint}>
+        <select
+          id="groundId"
+          name="groundId"
+          required
+          value={groundId}
+          onChange={(e) => setGroundId(e.target.value)}
+          disabled={isTournament && tournament === null}
+          className="select"
+        >
+          <option value="" disabled>
+            {isTournament && tournament === null
+              ? "Select a tournament first"
+              : "Select a ground"}
+          </option>
+          {groundChoices.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+              {g.location ? ` — ${g.location}` : ""}
+            </option>
+          ))}
+        </select>
+      </Field>
+    ),
+
+    overs: (
+      <Field
+        label="Overs"
+        htmlFor="overs"
+        error={err.overs}
+        hint={
+          isTournament && tournament
+            ? "Set from the tournament's format — change it if this fixture differs."
+            : undefined
+        }
+      >
+        <select
+          id="overs"
+          name="overs"
+          value={String(overs)}
+          onChange={(e) => setOvers(Number(e.target.value))}
+          className="select"
+        >
+          {OVERS_OPTIONS.map((o) => (
+            <option key={o} value={o}>
+              {o} overs
+            </option>
+          ))}
+        </select>
+      </Field>
+    ),
+
+    matchNumber: (
+      <Field
+        label="Match number"
+        htmlFor="matchNumber"
+        error={err.matchNumber}
+        hint="Which fixture in the tournament this is. Optional."
+      >
+        <input
+          id="matchNumber"
+          name="matchNumber"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          placeholder="e.g. 3"
+          defaultValue={initial?.matchNumber ?? ""}
+          className="input"
+        />
+      </Field>
+    ),
+
+    dateTime: (
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Date"
+          htmlFor="date"
+          error={err.date}
+          hint={customDate ? undefined : "Match days — Sundays."}
+        >
+          {customDate ? (
+            <>
+              <input
+                id="date"
+                name="date"
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="input"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomDate(false);
+                  if (!sundays.includes(date)) setDate(sundays[0] ?? "");
+                }}
+                className="mt-1.5 text-[12px] font-medium text-ios-blue active:opacity-60"
+              >
+                Back to Sundays
+              </button>
+            </>
+          ) : (
+            <select
+              id="date"
+              name="date"
+              required
+              value={date}
+              onChange={(e) => {
+                if (e.target.value === OTHER_DATE) {
+                  setCustomDate(true);
+                  return;
+                }
+                setDate(e.target.value);
+              }}
+              className="select"
+            >
+              {sundays.map((value) => (
+                <option key={value} value={value}>
+                  {formatDateValueLong(value)}
+                </option>
+              ))}
+              <option value={OTHER_DATE}>Another date…</option>
+            </select>
+          )}
+        </Field>
+
+        <Field label="Start time" htmlFor="time" error={err.time}>
+          <input
+            id="time"
+            name="time"
+            type="time"
+            required
+            defaultValue={initial ? toTimeInputValue(initial.date) : DEFAULT_START_TIME}
+            className="input"
+          />
+        </Field>
+      </div>
+    ),
+
+    opponent: (
+      <Field label="Opponent team" htmlFor="opponentTeam" error={err.opponentTeam}>
+        <input
+          id="opponentTeam"
+          name="opponentTeam"
+          type="text"
+          required
+          maxLength={80}
+          placeholder="e.g. Royal Strikers"
+          defaultValue={initial?.opponentTeam ?? ""}
+          className="input"
+        />
+      </Field>
+    ),
+  };
+
+  // A tournament fixture is entered top-down: which tournament, where it is
+  // played, over how many overs, which fixture — then when and against whom.
+  const order = isTournament
+    ? ["tournament", "ground", "overs", "matchNumber", "dateTime", "opponent"]
+    : ["dateTime", "opponent", "ground", "overs"];
 
   return (
     <form action={formAction} className="space-y-5">
@@ -107,199 +381,13 @@ export function MatchForm({
           <input type="hidden" name="matchType" value={matchType} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Date"
-            htmlFor="date"
-            error={err.date}
-            hint={customDate ? undefined : "Match days — Sundays."}
-          >
-            {customDate ? (
-              <>
-                <input
-                  id="date"
-                  name="date"
-                  type="date"
-                  required
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="input"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomDate(false);
-                    if (!sundays.includes(date)) setDate(sundays[0] ?? "");
-                  }}
-                  className="mt-1.5 text-[12px] font-medium text-ios-blue active:opacity-60"
-                >
-                  Back to Sundays
-                </button>
-              </>
-            ) : (
-              <select
-                id="date"
-                name="date"
-                required
-                value={date}
-                onChange={(e) => {
-                  if (e.target.value === OTHER_DATE) {
-                    setCustomDate(true);
-                    return;
-                  }
-                  setDate(e.target.value);
-                }}
-                className="select"
-              >
-                {sundays.map((value) => (
-                  <option key={value} value={value}>
-                    {formatDateValueLong(value)}
-                  </option>
-                ))}
-                <option value={OTHER_DATE}>Another date…</option>
-              </select>
-            )}
-          </Field>
-
-          <Field label="Start time" htmlFor="time" error={err.time}>
-            <input
-              id="time"
-              name="time"
-              type="time"
-              required
-              defaultValue={initial ? toTimeInputValue(initial.date) : DEFAULT_START_TIME}
-              className="input"
-            />
-          </Field>
-        </div>
-
-        <Field label="Opponent team" htmlFor="opponentTeam" error={err.opponentTeam}>
-          <input
-            id="opponentTeam"
-            name="opponentTeam"
-            type="text"
-            required
-            maxLength={80}
-            placeholder="e.g. Royal Strikers"
-            defaultValue={initial?.opponentTeam ?? ""}
-            className="input"
-          />
-        </Field>
-
-        <Field
-          label="Ground"
-          htmlFor="groundId"
-          error={err.groundId}
-          hint={grounds.length === 0 ? "No grounds yet — add one first." : undefined}
-        >
-          <select
-            id="groundId"
-            name="groundId"
-            required
-            defaultValue={initial?.groundId ? String(initial.groundId) : ""}
-            className="select"
-          >
-            <option value="" disabled>
-              Select a ground
-            </option>
-            {grounds.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-                {g.location ? ` — ${g.location}` : ""}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Overs" htmlFor="overs" error={err.overs}>
-          <select
-            id="overs"
-            name="overs"
-            value={String(overs)}
-            onChange={(e) => setOvers(Number(e.target.value))}
-            className="select"
-          >
-            {OVERS_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {o} overs
-              </option>
-            ))}
-          </select>
-        </Field>
+        {order.map((key) => (
+          <Fragment key={key}>{fields[key]}</Fragment>
+        ))}
       </div>
 
-      {isTournament ? (
-        <div className="card-pad animate-fade-in-up space-y-4">
-          <p className="section-title">Tournament details</p>
-
-          <Field
-            label="Tournament"
-            htmlFor="tournamentId"
-            error={err.tournamentId}
-            hint={
-              options.length === 0
-                ? "None yet — tap New to create one without leaving this page."
-                : "Overs default to the tournament's format."
-            }
-          >
-            <div className="flex gap-2">
-              <select
-                id="tournamentId"
-                name="tournamentId"
-                value={tournamentId}
-                onChange={(e) => {
-                  setTournamentId(e.target.value);
-                  const picked = options.find((t) => String(t.id) === e.target.value);
-                  if (picked?.overs) setOvers(picked.overs);
-                }}
-                className="select flex-1"
-              >
-                <option value="">Select a tournament</option>
-                {options.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.overs ? ` (${t.overs} ov)` : ""}
-                  </option>
-                ))}
-              </select>
-
-              <NewTournamentButton
-                grounds={grounds.map((g) => ({
-                  id: g.id,
-                  name: g.name,
-                  location: g.location ?? null,
-                }))}
-                onCreated={(t) => {
-                  // Add it locally and select it, so the half-filled match
-                  // form survives — a page refresh here would discard it.
-                  setOptions((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
-                  setTournamentId(String(t.id));
-                  if (t.overs) setOvers(t.overs);
-                }}
-              />
-            </div>
-          </Field>
-
-          <Field
-            label="Match number"
-            htmlFor="matchNumber"
-            error={err.matchNumber}
-            hint="Which fixture in the tournament this is. Optional."
-          >
-            <input
-              id="matchNumber"
-              name="matchNumber"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              placeholder="e.g. 3"
-              defaultValue={initial?.matchNumber ?? ""}
-              className="input"
-            />
-          </Field>
-        </div>
-      ) : (
-        // Keep the keys present so the server always sees the fields.
+      {/* Keep the keys present so the server always sees the fields. */}
+      {isTournament ? null : (
         <>
           <input type="hidden" name="tournamentId" value="" />
           <input type="hidden" name="matchNumber" value="" />

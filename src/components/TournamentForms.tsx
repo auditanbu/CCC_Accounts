@@ -194,7 +194,12 @@ export function NewTournamentButton({
   onCreated,
   grounds,
 }: {
-  onCreated: (tournament: { id: number; name: string; overs?: number }) => void;
+  onCreated: (tournament: {
+    id: number;
+    name: string;
+    overs?: number;
+    groundIds?: number[];
+  }) => void;
   grounds: GroundOption[];
 }) {
   const [state, action] = useActionState(createTournamentAction, idleState);

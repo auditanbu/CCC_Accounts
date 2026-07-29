@@ -16,7 +16,11 @@ export default async function NewMatchPage() {
 
   const [grounds, tournaments] = await Promise.all([
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
-    prisma.tournament.findMany({ orderBy: { name: "asc" } }),
+    prisma.tournament.findMany({
+      orderBy: { name: "asc" },
+      // The form narrows its ground list to the venues of the chosen tournament.
+      include: { grounds: { select: { id: true } } },
+    }),
   ]);
 
   return (
@@ -49,7 +53,10 @@ export default async function NewMatchPage() {
         <MatchForm
           action={createMatchAction}
           grounds={grounds}
-          tournaments={tournaments}
+          tournaments={tournaments.map((t) => ({
+            ...t,
+            groundIds: t.grounds.map((g) => g.id),
+          }))}
           submitLabel="Create match"
         />
       )}

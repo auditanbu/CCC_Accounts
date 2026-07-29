@@ -26,7 +26,11 @@ export default async function EditMatchPage({
   const [match, grounds, tournaments] = await Promise.all([
     prisma.match.findUnique({ where: { id: matchId } }),
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
-    prisma.tournament.findMany({ orderBy: { name: "asc" } }),
+    prisma.tournament.findMany({
+      orderBy: { name: "asc" },
+      // The form narrows its ground list to the venues of the chosen tournament.
+      include: { grounds: { select: { id: true } } },
+    }),
   ]);
   if (!match) notFound();
 
@@ -46,7 +50,10 @@ export default async function EditMatchPage({
       <MatchForm
         action={updateMatchAction}
         grounds={grounds}
-        tournaments={tournaments}
+        tournaments={tournaments.map((t) => ({
+          ...t,
+          groundIds: t.grounds.map((g) => g.id),
+        }))}
         initial={match}
         submitLabel="Save changes"
       />
