@@ -143,111 +143,122 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
         ) : null}
       </div>
 
-      <ul className="list-group">
-        {rows.map((row) => {
-          const d = drafts[row.playerId]!;
-          const payableNum = d.payable === "" ? row.defaultMatchFee : num(d.payable);
-          const short = round2(payableNum - num(d.collected));
+      {showCollections && rows.every((r) => !drafts[r.playerId]!.present) ? (
+        <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
+          No players marked present yet — hide collections and select the XI first.
+        </p>
+      ) : (
+        <ul className="list-group">
+          {rows
+            // The attendance step already decided who played; this step is
+            // money-only, so anyone not selected there has nothing to show here.
+            .filter((row) => !showCollections || drafts[row.playerId]!.present)
+            .map((row) => {
+              const d = drafts[row.playerId]!;
+              const payableNum = d.payable === "" ? row.defaultMatchFee : num(d.payable);
+              const short = round2(payableNum - num(d.collected));
 
-          return (
-            <li key={row.playerId} className="px-4 py-3">
-              {/* Always post the id so the server sees absentees explicitly. */}
-              <input type="hidden" name="player" value={row.playerId} />
+              return (
+                <li key={row.playerId} className="px-4 py-3">
+                  {/* Always post the id so the server sees absentees explicitly. */}
+                  <input type="hidden" name="player" value={row.playerId} />
+                  {/* Row is only rendered here when already present, but the
+                      checkbox itself is hidden in this step — post it directly. */}
+                  {showCollections ? (
+                    <input type="hidden" name={`present-${row.playerId}`} value="on" />
+                  ) : null}
+                  {/* Payable is hidden in this step too; keep submitting whatever
+                      it was set to (the default fee, unless edited elsewhere). */}
+                  {showCollections ? (
+                    <input type="hidden" name={`payable-${row.playerId}`} value={d.payable} />
+                  ) : null}
 
-              <label className="flex cursor-pointer items-center gap-3">
-                <input
-                  type="checkbox"
-                  name={`present-${row.playerId}`}
-                  checked={d.present}
-                  onChange={(e) => togglePresent(row, e.target.checked)}
-                  className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-md border-black/15 text-ios-blue accent-ios-blue focus:ring-ios-blue"
-                />
-                <span
-                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold transition-colors ${
-                    d.present ? "bg-ios-blue/12 text-ios-blue" : "bg-black/[0.05] text-label-tertiary"
-                  }`}
-                  aria-hidden
-                >
-                  {row.jerseyNumber}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={`block truncate text-[15px] font-medium ${
-                      d.present ? "" : "text-label-secondary"
-                    }`}
+                  <label
+                    className={`flex items-center gap-3 ${showCollections ? "" : "cursor-pointer"}`}
                   >
-                    {row.name}
-                  </span>
-                  <span className="block text-[12px] text-label-secondary">
-                    #{row.jerseyNumber} · default {formatMoney(row.defaultMatchFee)}
-                  </span>
-                </span>
-                {d.present && short > 0 ? (
-                  <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
-                    {formatMoney(short)} due
-                  </span>
-                ) : null}
-                {d.present && short <= 0 && num(d.collected) > 0 ? (
-                  <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">Paid</span>
-                ) : null}
-              </label>
-
-              {d.present && showCollections ? (
-                <div className="mt-3 grid grid-cols-2 gap-2 pl-[34px] sm:grid-cols-3">
-                  <div>
-                    <span className="mb-1 block text-[11px] font-medium text-label-secondary">
-                      Payable ₹
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step="1"
-                      name={`payable-${row.playerId}`}
-                      value={d.payable}
-                      onChange={(e) => update(row.playerId, { payable: e.target.value })}
-                      className="input px-2.5 py-1.5 text-[14px]"
-                    />
-                  </div>
-                  <div>
-                    <span className="mb-1 block text-[11px] font-medium text-label-secondary">
-                      Collected ₹
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step="1"
-                      placeholder="0"
-                      name={`collected-${row.playerId}`}
-                      value={d.collected}
-                      onChange={(e) => update(row.playerId, { collected: e.target.value })}
-                      className="input px-2.5 py-1.5 text-[14px]"
-                    />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="mb-1 block text-[11px] font-medium text-label-secondary">
-                      Mode
-                    </span>
-                    <select
-                      name={`mode-${row.playerId}`}
-                      value={d.mode}
-                      onChange={(e) =>
-                        update(row.playerId, { mode: e.target.value as Draft["mode"] })
-                      }
-                      className="select px-2.5 py-1.5 text-[14px]"
+                    {showCollections ? null : (
+                      <input
+                        type="checkbox"
+                        name={`present-${row.playerId}`}
+                        checked={d.present}
+                        onChange={(e) => togglePresent(row, e.target.checked)}
+                        className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-md border-black/15 text-ios-blue accent-ios-blue focus:ring-ios-blue"
+                      />
+                    )}
+                    <span
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold transition-colors ${
+                        d.present
+                          ? "bg-ios-blue/12 text-ios-blue"
+                          : "bg-black/[0.05] text-label-tertiary"
+                      }`}
+                      aria-hidden
                     >
-                      <option value="">Not recorded</option>
-                      <option value="UPI">UPI</option>
-                      <option value="CASH">Cash</option>
-                    </select>
-                  </div>
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+                      {row.jerseyNumber}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block truncate text-[15px] font-medium ${
+                          d.present ? "" : "text-label-secondary"
+                        }`}
+                      >
+                        {row.name}
+                      </span>
+                      <span className="block text-[12px] text-label-secondary">
+                        #{row.jerseyNumber} · default {formatMoney(row.defaultMatchFee)}
+                      </span>
+                    </span>
+                    {d.present && short > 0 ? (
+                      <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
+                        {formatMoney(short)} due
+                      </span>
+                    ) : null}
+                    {d.present && short <= 0 && num(d.collected) > 0 ? (
+                      <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">Paid</span>
+                    ) : null}
+                  </label>
+
+                  {d.present && showCollections ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="mb-1 block text-[11px] font-medium text-label-secondary">
+                          Collected ₹
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="1"
+                          placeholder="0"
+                          name={`collected-${row.playerId}`}
+                          value={d.collected}
+                          onChange={(e) => update(row.playerId, { collected: e.target.value })}
+                          className="input px-2.5 py-1.5 text-[14px]"
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[11px] font-medium text-label-secondary">
+                          Mode
+                        </span>
+                        <select
+                          name={`mode-${row.playerId}`}
+                          value={d.mode}
+                          onChange={(e) =>
+                            update(row.playerId, { mode: e.target.value as Draft["mode"] })
+                          }
+                          className="select px-2.5 py-1.5 text-[14px]"
+                        >
+                          <option value="">Not recorded</option>
+                          <option value="UPI">UPI</option>
+                          <option value="CASH">Cash</option>
+                        </select>
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+        </ul>
+      )}
 
       <div className="card grid grid-cols-3 divide-x divide-separator/70">
         <div className="px-2 py-3 text-center">
