@@ -231,7 +231,13 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
                           placeholder="0"
                           name={`collected-${row.playerId}`}
                           value={d.collected}
-                          onChange={(e) => update(row.playerId, { collected: e.target.value })}
+                          onChange={(e) => {
+                            const collected = e.target.value;
+                            // Suggest UPI the moment an amount is entered, but only
+                            // if no mode has been picked yet — don't clobber Cash.
+                            const mode = d.mode === "" && num(collected) > 0 ? "UPI" : d.mode;
+                            update(row.playerId, { collected, mode });
+                          }}
                           className="input px-2.5 py-1.5 text-[14px]"
                         />
                       </div>
