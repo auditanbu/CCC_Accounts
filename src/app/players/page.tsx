@@ -5,7 +5,7 @@ import { AddPlayerForm } from "@/components/PlayerForm";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { ChevronRightIcon } from "@/components/ui/Icons";
 import { Money, StatCard } from "@/components/ui/Money";
-import { formatMoney, initials } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { getPlayerPendings } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import type { PlayerPending } from "@/lib/queries";
@@ -27,7 +27,7 @@ function PlayerRow({ p }: { p: PlayerPending }) {
                 : "bg-ios-orange/12 text-ios-orange"
           }`}
         >
-          {initials(p.name)}
+          {p.jerseyNumber}
         </span>
 
         <span className="min-w-0 flex-1">
