@@ -7,7 +7,13 @@ import { idleState, type ActionState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { NewTournamentButton } from "@/components/TournamentForms";
 import { OVERS_OPTIONS } from "@/lib/constants";
-import { istParts, toDateTimeLocalValue } from "@/lib/format";
+import {
+  formatDateValueLong,
+  isSundayValue,
+  toDateInputValue,
+  toTimeInputValue,
+  upcomingSundays,
+} from "@/lib/format";
 
 type Option = { id: number; name: string; location?: string | null; overs?: number };
 
@@ -48,6 +54,23 @@ export function MatchForm({
   // list straight away, without re-fetching and losing the entered values.
   const [options, setOptions] = useState<Option[]>(tournaments);
 
+  const initialDate = initial ? toDateInputValue(initial.date) : null;
+  // The list is fixed for the life of the form so the selected option can't
+  // shift underneath the captain while they fill the rest of it in.
+  const [sundays] = useState<string[]>(() => {
+    const list = upcomingSundays(SUNDAYS_SUGGESTED);
+    // An existing Sunday fixture may sit outside the window (a past match being
+    // corrected); keep it selectable rather than forcing the custom picker.
+    return initialDate && isSundayValue(initialDate) && !list.includes(initialDate)
+      ? [initialDate, ...list]
+      : list;
+  });
+  const [date, setDate] = useState<string>(initialDate ?? sundays[0] ?? "");
+  // Practice games are occasionally midweek, so Sundays are a suggestion, not a rule.
+  const [customDate, setCustomDate] = useState<boolean>(
+    initialDate !== null && !sundays.includes(initialDate),
+  );
+
   const err = state.fieldErrors ?? {};
   const isTournament = matchType === "TOURNAMENT";
 
@@ -84,18 +107,71 @@ export function MatchForm({
           <input type="hidden" name="matchType" value={matchType} />
         </div>
 
-        <Field label="Date & time" htmlFor="date" error={err.date}>
-          <input
-            id="date"
-            name="date"
-            type="datetime-local"
-            required
-            defaultValue={
-              initial ? toDateTimeLocalValue(initial.date) : defaultDateTimeValue()
-            }
-            className="input"
-          />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Date"
+            htmlFor="date"
+            error={err.date}
+            hint={customDate ? undefined : "Match days — Sundays."}
+          >
+            {customDate ? (
+              <>
+                <input
+                  id="date"
+                  name="date"
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="input"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomDate(false);
+                    if (!sundays.includes(date)) setDate(sundays[0] ?? "");
+                  }}
+                  className="mt-1.5 text-[12px] font-medium text-ios-blue active:opacity-60"
+                >
+                  Back to Sundays
+                </button>
+              </>
+            ) : (
+              <select
+                id="date"
+                name="date"
+                required
+                value={date}
+                onChange={(e) => {
+                  if (e.target.value === OTHER_DATE) {
+                    setCustomDate(true);
+                    return;
+                  }
+                  setDate(e.target.value);
+                }}
+                className="select"
+              >
+                {sundays.map((value) => (
+                  <option key={value} value={value}>
+                    {formatDateValueLong(value)}
+                  </option>
+                ))}
+                <option value={OTHER_DATE}>Another date…</option>
+              </select>
+            )}
+          </Field>
+
+          <Field label="Start time" htmlFor="time" error={err.time}>
+            <input
+              id="time"
+              name="time"
+              type="time"
+              required
+              defaultValue={initial ? toTimeInputValue(initial.date) : DEFAULT_START_TIME}
+              className="input"
+            />
+          </Field>
+        </div>
 
         <Field label="Opponent team" htmlFor="opponentTeam" error={err.opponentTeam}>
           <input
@@ -259,9 +335,9 @@ export function MatchForm({
   );
 }
 
-/** Today at 8:00 AM IST — the usual start time for weekend games. */
-function defaultDateTimeValue(): string {
-  const p = istParts(new Date());
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${p.year}-${pad(p.month)}-${pad(p.day)}T08:00`;
-}
+/** Roughly four months of fixtures — far enough ahead to plan a tournament. */
+const SUNDAYS_SUGGESTED = 16;
+/** Sentinel for the escape hatch out of the Sunday list. */
+const OTHER_DATE = "__other__";
+/** The usual start time for a weekend game. */
+const DEFAULT_START_TIME = "08:00";

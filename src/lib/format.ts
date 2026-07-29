@@ -139,10 +139,44 @@ export function formatMonthYear(date: Date | string): string {
   return `${p.monthLong} ${p.year}`;
 }
 
-/** Value for <input type="datetime-local">, in IST. */
-export function toDateTimeLocalValue(date: Date | string): string {
+/** Value for <input type="date">, in IST. "2026-06-16" */
+export function toDateInputValue(date: Date | string): string {
   const p = istParts(date);
-  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour24)}:${pad(p.minute)}`;
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
+}
+
+/** Value for <input type="time">, in IST. "08:00" */
+export function toTimeInputValue(date: Date | string): string {
+  const p = istParts(date);
+  return `${pad(p.hour24)}:${pad(p.minute)}`;
+}
+
+const DAY_MS = 86_400_000;
+
+/** True when a "YYYY-MM-DD" date value falls on a Sunday. */
+export function isSundayValue(value: string): boolean {
+  return istParts(`${value}T00:00:00+05:30`).weekday === 0;
+}
+
+/**
+ * The next `count` Sundays as "YYYY-MM-DD" values, in IST. Today is the first
+ * one when today is already a Sunday.
+ *
+ * The arithmetic runs on UTC components of an IST calendar day, so it never
+ * crosses a day boundary the way local-time arithmetic on the server would.
+ */
+export function upcomingSundays(count: number, from: Date | string = new Date()): string[] {
+  const p = istParts(from);
+  const firstMs = Date.UTC(p.year, p.month - 1, p.day) + ((7 - p.weekday) % 7) * DAY_MS;
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(firstMs + i * 7 * DAY_MS);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  });
+}
+
+/** "Sun, 16 June 2026" from a "YYYY-MM-DD" form value. */
+export function formatDateValueLong(value: string): string {
+  return formatDateLong(`${value}T00:00:00+05:30`);
 }
 
 /** "3 days ago" / "in 2 weeks" */
