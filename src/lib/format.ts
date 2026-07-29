@@ -159,16 +159,24 @@ export function isSundayValue(value: string): boolean {
 }
 
 /**
- * The next `count` Sundays as "YYYY-MM-DD" values, in IST. Today is the first
- * one when today is already a Sunday.
+ * `past` completed Sundays before today, then today's Sunday if today is one,
+ * then `future` Sundays ahead — chronological, oldest first, as "YYYY-MM-DD"
+ * values in IST. Covers logging a fixture already played as readily as one
+ * still to come.
  *
  * The arithmetic runs on UTC components of an IST calendar day, so it never
  * crosses a day boundary the way local-time arithmetic on the server would.
  */
-export function upcomingSundays(count: number, from: Date | string = new Date()): string[] {
+export function surroundingSundays(
+  past: number,
+  future: number,
+  from: Date | string = new Date(),
+): string[] {
   const p = istParts(from);
-  const firstMs = Date.UTC(p.year, p.month - 1, p.day) + ((7 - p.weekday) % 7) * DAY_MS;
-  return Array.from({ length: count }, (_, i) => {
+  // Today if today is a Sunday, else the next one ahead.
+  const nextMs = Date.UTC(p.year, p.month - 1, p.day) + ((7 - p.weekday) % 7) * DAY_MS;
+  const firstMs = nextMs - past * 7 * DAY_MS;
+  return Array.from({ length: past + future + 1 }, (_, i) => {
     const d = new Date(firstMs + i * 7 * DAY_MS);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   });

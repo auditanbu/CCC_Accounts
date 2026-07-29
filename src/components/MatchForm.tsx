@@ -10,9 +10,9 @@ import { OVERS_OPTIONS } from "@/lib/constants";
 import {
   formatDateValueLong,
   isSundayValue,
+  surroundingSundays,
   toDateInputValue,
   toTimeInputValue,
-  upcomingSundays,
 } from "@/lib/format";
 
 type GroundOption = { id: number; name: string; location?: string | null };
@@ -68,14 +68,17 @@ export function MatchForm({
   // The list is fixed for the life of the form so the selected option can't
   // shift underneath the captain while they fill the rest of it in.
   const [sundays] = useState<string[]>(() => {
-    const list = upcomingSundays(SUNDAYS_SUGGESTED);
-    // An existing Sunday fixture may sit outside the window (a past match being
+    const list = surroundingSundays(PAST_SUNDAYS, FUTURE_SUNDAYS);
+    // An existing Sunday fixture may sit outside the window (an old match being
     // corrected); keep it selectable rather than forcing the custom picker.
+    // ISO date strings sort chronologically, so a plain sort re-inserts it in place.
     return initialDate && isSundayValue(initialDate) && !list.includes(initialDate)
-      ? [initialDate, ...list]
+      ? [...list, initialDate].sort()
       : list;
   });
-  const [date, setDate] = useState<string>(initialDate ?? sundays[0] ?? "");
+  // Most fixtures get entered after they're played, so default to the most
+  // recently completed Sunday rather than the next one coming up.
+  const [date, setDate] = useState<string>(initialDate ?? lastPastOrToday(sundays));
   // Practice games are occasionally midweek, so Sundays are a suggestion, not a rule.
   const [customDate, setCustomDate] = useState<boolean>(
     initialDate !== null && !sundays.includes(initialDate),
@@ -423,9 +426,17 @@ export function MatchForm({
   );
 }
 
-/** Roughly four months of fixtures — far enough ahead to plan a tournament. */
-const SUNDAYS_SUGGESTED = 16;
+/** Roughly two months back — far enough to log a recent fixture late. */
+const PAST_SUNDAYS = 8;
+/** Roughly four months ahead — far enough to plan a tournament. */
+const FUTURE_SUNDAYS = 16;
 /** Sentinel for the escape hatch out of the Sunday list. */
 const OTHER_DATE = "__other__";
 /** The usual start time for a weekend game. */
 const DEFAULT_START_TIME = "08:00";
+
+/** The most recent Sunday at or before today, from a chronological list. */
+function lastPastOrToday(sundays: string[]): string {
+  const today = toDateInputValue(new Date());
+  return sundays.reduce((latest, value) => (value <= today ? value : latest), sundays[0] ?? "");
+}
