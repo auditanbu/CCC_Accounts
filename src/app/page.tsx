@@ -8,7 +8,7 @@ import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
 import { formatDate, formatMoney, formatTime } from "@/lib/format";
 import {
   getExpenseBreakdown,
-  getOutstandingPlayers,
+  getPlayerPendings,
   getRecentMatches,
   getTeamSummary,
   getTournamentOutstandings,
@@ -19,16 +19,21 @@ import { isAdmin } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [summary, recent, upcoming, outstanding, breakdown, tournaments, admin] =
+  const [summary, recent, upcoming, players, breakdown, tournaments, admin] =
     await Promise.all([
       getTeamSummary(),
       getRecentMatches(3),
       getUpcomingMatches(3),
-      getOutstandingPlayers(),
+      getPlayerPendings(),
       getExpenseBreakdown(),
       getTournamentOutstandings(),
       isAdmin(),
     ]);
+
+  const outstanding = players.filter((p) => p.pending > 0).sort((a, b) => b.pending - a.pending);
+  const totalPending = players.reduce((s, p) => s + Math.max(p.pending, 0), 0);
+  // The flip side of pending — players who've paid in more than they owe.
+  const totalExcess = players.reduce((s, p) => s + Math.max(-p.pending, 0), 0);
 
   const topExpenses = breakdown.slice(0, 5);
   const maxExpense = topExpenses[0]?.amount ?? 0;
@@ -64,16 +69,17 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Pending"
-          value={summary.totalPending}
-          tone={summary.totalPending > 0 ? "negative" : "plain"}
+          value={totalPending}
+          tone={totalPending > 0 ? "negative" : "plain"}
           accent="bg-ios-orange"
           caption={`${outstanding.length} player${outstanding.length === 1 ? "" : "s"} owe`}
         />
         <StatCard
-          label="Squad"
-          value={String(summary.activePlayers)}
-          accent="bg-ios-blue"
-          caption="Active players"
+          label="Excess"
+          value={totalExcess}
+          tone={totalExcess > 0 ? "positive" : "plain"}
+          accent="bg-ios-green"
+          caption="Paid in over what's owed"
         />
       </div>
 
