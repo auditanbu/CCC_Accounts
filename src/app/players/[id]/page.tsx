@@ -113,7 +113,7 @@ export default async function PlayerDetailPage({
             </p>
           </div>
         </div>
-        {openingBalance !== 0 ? (
+        {admin && openingBalance !== 0 ? (
           <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
@@ -139,7 +139,7 @@ export default async function PlayerDetailPage({
               {pending < 0 ? "Credit balance" : "Outstanding"}
             </p>
             <p className="mt-0.5 text-[12px] text-label-secondary">
-              {openingBalance !== 0 ? "Opening + payable − paid" : "Payable − paid"} across{" "}
+              {admin && openingBalance !== 0 ? "Opening + payable − paid" : "Payable − paid"} across{" "}
               {matchesPlayed} match{matchesPlayed === 1 ? "" : "es"}
             </p>
           </div>

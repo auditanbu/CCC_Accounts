@@ -41,11 +41,11 @@ export async function Header() {
           ) : (
             <Link
               href="/login"
-              className="btn btn-tinted btn-sm"
+              className="btn btn-tinted btn-sm px-2"
               aria-label="Admin sign in"
+              title="Admin sign in"
             >
-              <LockIcon width={14} height={14} strokeWidth={2} />
-              Admin
+              <LockIcon width={16} height={16} strokeWidth={2} />
             </Link>
           )}
         </div>

@@ -246,11 +246,13 @@ export default async function MatchDetailPage({
       </Section>
 
       {/* WhatsApp export */}
-      <Section title="Share">
-        <div className="card-pad">
-          <ShareButton text={whatsappText} />
-        </div>
-      </Section>
+      {admin ? (
+        <Section title="Share">
+          <div className="card-pad">
+            <ShareButton text={whatsappText} />
+          </div>
+        </Section>
+      ) : null}
 
       {/* Roster */}
       <Section title={admin ? "Roster & collections" : `Playing XI · ${present.length}`}>
