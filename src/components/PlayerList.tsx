@@ -18,6 +18,12 @@ const SORTERS: Record<SortKey, (a: PlayerPending, b: PlayerPending) => number> =
   balance: (a, b) => b.pending - a.pending,
 };
 
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "jersey", label: "Jersey" },
+  { key: "name", label: "Name" },
+  { key: "balance", label: "Balance" },
+];
+
 function PlayerRow({ p }: { p: PlayerPending }) {
   const settled = p.pending <= 0;
   return (
@@ -81,17 +87,18 @@ export function ActiveSquadList({ players }: { players: PlayerPending[] }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          aria-label="Sort active squad by"
-          className="select w-auto py-1.5 pl-3 text-[13px]"
-        >
-          <option value="jersey">Sort: Jersey number</option>
-          <option value="name">Sort: Name</option>
-          <option value="balance">Sort: Balance</option>
-        </select>
+      <div role="group" aria-label="Sort active squad by" className="flex flex-wrap gap-1.5">
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            aria-pressed={sort === opt.key}
+            onClick={() => setSort(opt.key)}
+            className={`btn btn-sm ${sort === opt.key ? "bg-ios-blue text-white" : "bg-black/[0.05] text-label"}`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
       <ul className="list-group">
         {sorted.map((p) => (
