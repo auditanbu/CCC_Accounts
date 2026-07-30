@@ -48,25 +48,43 @@ export function StatCard({
   tone = "plain",
   caption,
   accent,
+  size = "default",
 }: {
   label: string;
   value: number | string;
   tone?: "plain" | "ledger" | "positive" | "negative" | "muted";
   caption?: string;
   accent?: string;
+  /** "compact" for a row of many tiles that doesn't need the usual weight. */
+  size?: "default" | "compact";
 }) {
+  const compact = size === "compact";
   return (
-    <div className="card relative overflow-hidden p-4">
+    <div className={cn("card relative overflow-hidden", compact ? "p-3" : "p-4")}>
       {accent ? (
         <span className={cn("absolute inset-x-0 top-0 h-[3px]", accent)} aria-hidden />
       ) : null}
-      <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-label-secondary">
+      <p
+        className={cn(
+          "font-semibold uppercase tracking-[0.05em] text-label-secondary",
+          compact ? "text-[10px]" : "text-[12px]",
+        )}
+      >
         {label}
       </p>
-      <p className="mt-1.5 text-[24px] font-bold leading-none tracking-[-0.02em] sm:text-[26px]">
+      <p
+        className={cn(
+          "font-bold leading-none tracking-[-0.02em]",
+          compact ? "mt-1 text-[16px] sm:text-[18px]" : "mt-1.5 text-[24px] sm:text-[26px]",
+        )}
+      >
         {typeof value === "number" ? <Money value={value} tone={tone} /> : value}
       </p>
-      {caption ? <p className="mt-1.5 text-[12px] text-label-secondary">{caption}</p> : null}
+      {caption ? (
+        <p className={cn("mt-1.5 text-label-secondary", compact ? "text-[11px]" : "text-[12px]")}>
+          {caption}
+        </p>
+      ) : null}
     </div>
   );
 }

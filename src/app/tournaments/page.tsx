@@ -37,14 +37,15 @@ export default async function TournamentsPage() {
       </div>
 
       {tournaments.length > 0 ? (
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Total fees" value={totalFees} accent="bg-ios-indigo" />
-          <StatCard label="Paid" value={totalPaid} accent="bg-ios-green" />
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard label="Total fees" value={totalFees} accent="bg-ios-indigo" size="compact" />
+          <StatCard label="Paid" value={totalPaid} accent="bg-ios-green" size="compact" />
           <StatCard
             label="Outstanding"
             value={totalOutstanding}
             tone={totalOutstanding > 0 ? "negative" : "plain"}
             accent="bg-ios-orange"
+            size="compact"
           />
         </div>
       ) : null}
@@ -139,26 +140,26 @@ export default async function TournamentsPage() {
                     <dl className="mt-3.5 grid grid-cols-3 gap-2 border-t border-separator/70 pt-3">
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-label-secondary">
-                          Collected
+                          Total fee
                         </dt>
                         <dd className="text-[15px] font-semibold">
-                          <Money value={t.collection} />
+                          <Money value={t.totalFee} />
                         </dd>
                       </div>
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-label-secondary">
-                          Expenses
+                          Paid
                         </dt>
                         <dd className="text-[15px] font-semibold">
-                          <Money value={t.expenses} />
+                          <Money value={t.feePaid} />
                         </dd>
                       </div>
                       <div>
                         <dt className="text-[11px] font-medium uppercase tracking-wide text-label-secondary">
-                          Net
+                          Outstanding
                         </dt>
                         <dd className="text-[15px] font-semibold">
-                          <Money value={t.net} tone="ledger" />
+                          <Money value={t.outstanding} tone={t.outstanding > 0 ? "negative" : "plain"} />
                         </dd>
                       </div>
                     </dl>

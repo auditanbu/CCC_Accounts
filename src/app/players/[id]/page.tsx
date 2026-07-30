@@ -8,7 +8,7 @@ import { EmptyState, Section } from "@/components/ui/Card";
 import { ConfirmSubmit, SubmitButton } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { Money, StatCard } from "@/components/ui/Money";
-import { formatDate, formatMoney, initials } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { getPlayerLedger } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -63,7 +63,7 @@ export default async function PlayerDetailPage({
                 : "bg-black/[0.05] text-label-tertiary"
             }`}
           >
-            {initials(player.name)}
+            {player.jerseyNumber}
           </span>
           <div className="min-w-0">
             <h1 className="page-title truncate">{player.name}</h1>
