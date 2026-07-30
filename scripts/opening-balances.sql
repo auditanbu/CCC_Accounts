@@ -20,7 +20,7 @@ WITH incoming(name, opening) AS (
     ('Prakash',   1000),
     ('Raj',        400),
     ('Mythish',    300),
-    ('Santhosh',   200),
+    ('Sandy',      200),
     ('Jeeva',      200),
     -- paid in excess, carried as credit
     ('Mohan',     -670),
@@ -39,7 +39,7 @@ UPDATE "Player" p
 WITH incoming(name, opening) AS (
   VALUES
     ('Karthik',1800),('Rajkumar',1500),('Prakash',1000),('Raj',400),
-    ('Mythish',300),('Santhosh',200),('Jeeva',200),('Mohan',-670),
+    ('Mythish',300),('Sandy',200),('Jeeva',200),('Mohan',-670),
     ('Srirangan',-280),('Anbu',-200),('Madhesh',-200),('Mani',-150)
 )
 SELECT i.name,
