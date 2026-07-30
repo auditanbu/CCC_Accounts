@@ -1,0 +1,22 @@
+/**
+ * Source art for the generated app icons (manifest PNGs, apple-touch-icon).
+ * Mirrors src/app/icon.svg — keep both in sync if the mark changes.
+ */
+export const BRAND_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFCC00" />
+      <stop offset="1" stop-color="#FF9500" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)" />
+  <g stroke="#1C1C1E" stroke-width="4.5" stroke-linecap="round" fill="none">
+    <path d="M40 16 24 44" />
+    <path d="M42 12h8v8" />
+  </g>
+  <circle cx="20" cy="20" r="5" fill="#1C1C1E" />
+</svg>`;
+
+export function brandIconDataUri(): string {
+  return `data:image/svg+xml;base64,${Buffer.from(BRAND_ICON_SVG).toString("base64")}`;
+}
