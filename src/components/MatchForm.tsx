@@ -6,7 +6,7 @@ import { Fragment, useActionState, useState, type ReactNode } from "react";
 import { idleState, type ActionState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { NewTournamentButton } from "@/components/TournamentForms";
-import { OVERS_OPTIONS } from "@/lib/constants";
+import { OVERS_OPTIONS, TEAM_NAME } from "@/lib/constants";
 import {
   formatDateValueLong,
   isSundayValue,
@@ -33,6 +33,8 @@ export type MatchFormValues = {
   opponentTeam: string;
   groundId: number;
   tournamentId: number | null;
+  tossWonBy: "US" | "OPPONENT" | null;
+  tossDecision: "BAT" | "BOWL" | null;
   result: "WIN" | "LOSS" | "TIE" | "NO_RESULT" | null;
   ourScore: string | null;
   opponentScore: string | null;
@@ -382,7 +384,7 @@ export function MatchForm({
             aria-label="Match type"
             className="flex gap-1 rounded-xl bg-black/[0.05] p-1"
           >
-            {(["PRACTICE", "TOURNAMENT"] as const).map((type) => (
+            {(["TOURNAMENT", "PRACTICE"] as const).map((type) => (
               <button
                 key={type}
                 type="button"
@@ -420,6 +422,33 @@ export function MatchForm({
         <p className="-mt-2 text-[12px] text-label-secondary">
           Fill this in once the match has been played. Optional.
         </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Toss won by" htmlFor="tossWonBy" error={err.tossWonBy}>
+            <select
+              id="tossWonBy"
+              name="tossWonBy"
+              defaultValue={initial?.tossWonBy ?? ""}
+              className="select"
+            >
+              <option value="">Not recorded</option>
+              <option value="US">{TEAM_NAME}</option>
+              <option value="OPPONENT">Opponent</option>
+            </select>
+          </Field>
+          <Field label="Elected to" htmlFor="tossDecision" error={err.tossDecision}>
+            <select
+              id="tossDecision"
+              name="tossDecision"
+              defaultValue={initial?.tossDecision ?? ""}
+              className="select"
+            >
+              <option value="">—</option>
+              <option value="BAT">Bat</option>
+              <option value="BOWL">Bowl</option>
+            </select>
+          </Field>
+        </div>
 
         <Field label="Result" htmlFor="result" error={err.result}>
           <select

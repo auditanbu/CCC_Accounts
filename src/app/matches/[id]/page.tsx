@@ -14,7 +14,7 @@ import { Money } from "@/components/ui/Money";
 import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
 import { formatDateLong, formatMoney, formatTime, initials } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { getMatchDetail, getOutstandingPlayers, getTeamBalance } from "@/lib/queries";
+import { getMatchDetail, getPlayerPendings, getTeamBalance } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { buildWhatsAppSummary } from "@/lib/whatsapp";
 
@@ -47,10 +47,10 @@ export default async function MatchDetailPage({
 
   const { match, totals } = detail;
 
-  const [admin, teamBalance, outstanding, activePlayers] = await Promise.all([
+  const [admin, teamBalance, playerPendings, activePlayers] = await Promise.all([
     isAdmin(),
     getTeamBalance(),
-    getOutstandingPlayers(),
+    getPlayerPendings(),
     prisma.player.findMany({
       where: { status: "ACTIVE" },
       orderBy: { jerseyNumber: "asc" },
@@ -92,7 +92,7 @@ export default async function MatchDetailPage({
     matchExpenses: totals.expenses,
     netAmount: totals.net,
     teamBalance,
-    pendings: outstanding.map((p) => ({ name: p.name, pending: p.pending })),
+    pendings: playerPendings.map((p) => ({ name: p.name, pending: p.pending })),
   });
 
   return (
@@ -145,6 +145,14 @@ export default async function MatchDetailPage({
             </p>
             {match.tournament ? (
               <p className="mt-0.5 text-[14px] text-ios-indigo">🏆 {match.tournament.name}</p>
+            ) : null}
+            {match.tossWonBy ? (
+              <p className="mt-2 text-[13px] text-label-secondary">
+                🪙 {match.tossWonBy === "US" ? TEAM_NAME : match.opponentTeam} won the toss
+                {match.tossDecision
+                  ? `, chose to ${match.tossDecision === "BAT" ? "bat" : "bowl"}`
+                  : ""}
+              </p>
             ) : null}
             {match.result ? (
               <p className="mt-2 flex flex-wrap items-center gap-2 text-[14px]">

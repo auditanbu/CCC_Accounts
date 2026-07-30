@@ -32,6 +32,16 @@ enum MatchResult {
   NO_RESULT
 }
 
+enum TossWinner {
+  US
+  OPPONENT
+}
+
+enum TossDecision {
+  BAT
+  BOWL
+}
+
 model Player {
   id              Int           @id @default(autoincrement())
   name            String
@@ -95,6 +105,8 @@ model Match {
   tournamentId  Int?
   tournament    Tournament?    @relation(fields: [tournamentId], references: [id])
   /// Filled in once the match has been played.
+  tossWonBy     TossWinner?
+  tossDecision  TossDecision?
   result        MatchResult?
   /// Free text, e.g. "156/7 (20)" — a scorecard, not a decomposed run/wicket count.
   ourScore      String?

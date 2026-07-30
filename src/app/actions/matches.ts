@@ -44,6 +44,14 @@ const matchSchema = z
       .optional()
       .transform((v) => (v ? Number(v) : null))
       .refine((v) => v === null || Number.isInteger(v), "Pick a valid tournament."),
+    tossWonBy: z
+      .enum(["", "US", "OPPONENT"])
+      .optional()
+      .transform((v) => (v ? v : null)),
+    tossDecision: z
+      .enum(["", "BAT", "BOWL"])
+      .optional()
+      .transform((v) => (v ? v : null)),
     result: z
       .enum(["", "WIN", "LOSS", "TIE", "NO_RESULT"])
       .optional()
@@ -90,6 +98,8 @@ const matchSchema = z
     // still had stale values selected when the type was switched.
     tournamentId: v.matchType === "TOURNAMENT" ? v.tournamentId : null,
     matchNumber: v.matchType === "TOURNAMENT" ? v.matchNumber : null,
+    // A decision means nothing without a toss winner to have made it.
+    tossDecision: v.tossWonBy === null ? null : v.tossDecision,
   }));
 
 /**
@@ -116,6 +126,8 @@ function parseMatch(formData: FormData) {
     opponentTeam: formData.get("opponentTeam") ?? "",
     groundId: formData.get("groundId") ?? "",
     tournamentId: formData.get("tournamentId") ?? "",
+    tossWonBy: formData.get("tossWonBy") ?? "",
+    tossDecision: formData.get("tossDecision") ?? "",
     result: formData.get("result") ?? "",
     ourScore: formData.get("ourScore") ?? "",
     opponentScore: formData.get("opponentScore") ?? "",
