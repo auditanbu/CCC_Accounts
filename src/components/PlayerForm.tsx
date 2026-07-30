@@ -99,7 +99,7 @@ function Fields({
               aria-pressed={fee === option}
               className={`flex-1 rounded-[9px] py-2 text-[14px] font-semibold transition-all ${
                 fee === option
-                  ? "bg-white text-label shadow-sm"
+                  ? "bg-surface text-label shadow-sm"
                   : "text-label-secondary active:opacity-60"
               }`}
             >
@@ -107,7 +107,7 @@ function Fields({
             </button>
           ))}
           {isCustomFee ? (
-            <span className="flex-1 rounded-[9px] bg-white py-2 text-center text-[14px] font-semibold shadow-sm">
+            <span className="flex-1 rounded-[9px] bg-surface py-2 text-center text-[14px] font-semibold shadow-sm">
               {formatMoney(fee)}
             </span>
           ) : null}

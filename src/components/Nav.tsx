@@ -5,13 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 
 import { cn } from "@/lib/cn";
-import {
-  CalendarIcon,
-  CricketIcon,
-  HomeIcon,
-  PeopleIcon,
-  TrophyIcon,
-} from "@/components/ui/Icons";
+import { CricketIcon, HomeIcon, PeopleIcon, TrophyIcon } from "@/components/ui/Icons";
 
 type Tab = {
   href: string;
@@ -25,7 +19,6 @@ type Tab = {
 const TABS: Tab[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/matches", label: "Matches", icon: CricketIcon },
-  { href: "/schedule", label: "Schedule", icon: CalendarIcon },
   { href: "/players", label: "Players", icon: PeopleIcon },
   { href: "/tournaments", label: "Cups", longLabel: "Tournaments", icon: TrophyIcon },
 ];

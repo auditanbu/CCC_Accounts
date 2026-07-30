@@ -48,7 +48,9 @@ export function Sheet({
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-black/25 backdrop-blur-sm"
+        // Bypasses the theme-flipped `black` token deliberately: a modal
+        // scrim dims what's behind it and should stay dark in both themes.
+        className="absolute inset-0 bg-[#000]/25 backdrop-blur-sm"
       />
 
       <div

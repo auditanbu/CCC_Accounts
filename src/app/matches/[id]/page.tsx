@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ExpenseForm } from "@/app/matches/[id]/ExpenseForm";
 import { RosterEditor, type RosterRow } from "@/app/matches/[id]/RosterEditor";
 import { deleteExpenseAction } from "@/app/actions/matches";
-import { MatchTypeBadge } from "@/components/MatchCard";
+import { MatchTypeBadge, ResultBadge } from "@/components/MatchCard";
 import { ShareButton } from "@/components/ShareButton";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { ConfirmSubmit } from "@/components/ui/Form";
@@ -145,6 +145,27 @@ export default async function MatchDetailPage({
             </p>
             {match.tournament ? (
               <p className="mt-0.5 text-[14px] text-ios-indigo">🏆 {match.tournament.name}</p>
+            ) : null}
+            {match.result ? (
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-[14px]">
+                <ResultBadge result={match.result} />
+                {match.ourScore || match.opponentScore ? (
+                  <span className="text-label-secondary">
+                    {TEAM_NAME} {match.ourScore ?? "—"} · {match.opponentTeam}{" "}
+                    {match.opponentScore ?? "—"}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            {match.cricheroesUrl ? (
+              <a
+                href={match.cricheroesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[13px] font-medium text-ios-blue"
+              >
+                View full scorecard on Cricheroes ↗
+              </a>
             ) : null}
           </div>
 

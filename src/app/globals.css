@@ -7,15 +7,70 @@
     /* --font-inter is injected by next/font on <html>. */
     /* Safe-area padding so the sticky tab bar clears the iPhone home indicator. */
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* Apple system palette — light. Triplets ("R G B") so Tailwind's opacity
+       modifiers (bg-ios-blue/10, border-separator/70, ...) keep working; see
+       tailwind.config.ts. */
+    --color-ios-blue: 0 122 255;
+    --color-ios-green: 52 199 89;
+    --color-ios-indigo: 88 86 214;
+    --color-ios-orange: 255 149 0;
+    --color-ios-pink: 255 45 85;
+    --color-ios-purple: 175 82 222;
+    --color-ios-red: 255 59 48;
+    --color-ios-teal: 48 176 199;
+    --color-ios-yellow: 255 204 0;
+    --color-ios-gray: 142 142 147;
+
+    --color-canvas: 242 242 247;
+    --color-surface: 255 255 255;
+    --color-separator: 229 229 234;
+    /* A "subtle fill relative to the page" — what every bg-black/[0.0N] in the
+       app actually means. Real black in light mode; flips to white in dark. */
+    --color-overlay: 0 0 0;
+
+    /* label.secondary/tertiary bake in a fixed alpha already, so these hold a
+       complete color rather than a triplet. */
+    --color-label: #1c1c1e;
+    --color-label-secondary: rgba(60, 60, 67, 0.6);
+    --color-label-tertiary: rgba(60, 60, 67, 0.3);
+  }
+
+  :root[data-theme="dark"] {
+    /* Apple system palette — dark. Gray is the one system color Apple keeps
+       identical across appearances. */
+    --color-ios-blue: 10 132 255;
+    --color-ios-green: 48 209 88;
+    --color-ios-indigo: 94 92 230;
+    --color-ios-orange: 255 159 10;
+    --color-ios-pink: 255 55 95;
+    --color-ios-purple: 191 90 242;
+    --color-ios-red: 255 69 58;
+    --color-ios-teal: 64 200 224;
+    --color-ios-yellow: 255 214 10;
+    --color-ios-gray: 142 142 147;
+
+    --color-canvas: 0 0 0;
+    --color-surface: 28 28 30;
+    --color-separator: 56 56 58;
+    --color-overlay: 255 255 255;
+
+    --color-label: #ffffff;
+    --color-label-secondary: rgba(235, 235, 245, 0.6);
+    --color-label-tertiary: rgba(235, 235, 245, 0.3);
   }
 
   html {
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
-    /* This is a deliberately light-only design. Declaring the scheme stops
+    /* Declaring the scheme explicitly (rather than "light dark") stops
        browsers with automatic dark mode (Edge, some Chrome builds) from
-       inverting the palette into something the design never accounts for. */
+       inverting the page ahead of the toggle below choosing a theme. */
     color-scheme: light;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
   }
 
   body {
@@ -49,7 +104,7 @@
   }
 
   .glass {
-    @apply bg-white/70 backdrop-blur-xl backdrop-saturate-150;
+    @apply bg-surface/70 backdrop-blur-xl backdrop-saturate-150;
   }
 
   /* Grouped inset list, the iOS Settings pattern. */
@@ -119,7 +174,7 @@
     @apply w-full rounded-xl border-0 bg-black/[0.04] px-3.5 py-2.5 text-[16px] text-label
            ring-1 ring-inset ring-transparent transition-shadow
            placeholder:text-label-tertiary
-           focus:bg-white focus:outline-none focus:ring-2 focus:ring-ios-blue;
+           focus:bg-surface focus:outline-none focus:ring-2 focus:ring-ios-blue;
   }
 
   .select {

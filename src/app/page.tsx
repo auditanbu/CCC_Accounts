@@ -83,9 +83,6 @@ export default async function DashboardPage() {
             <PlusIcon width={18} height={18} strokeWidth={2.2} />
             New match
           </Link>
-          <Link href="/players" className="btn-secondary">
-            Manage squad
-          </Link>
           <Link href="/grounds" className="btn-secondary">
             Grounds
           </Link>
@@ -144,7 +141,7 @@ export default async function DashboardPage() {
       <Section
         title="Upcoming"
         action={
-          <Link href="/schedule" className="text-[14px] font-medium text-ios-blue">
+          <Link href="/matches" className="text-[14px] font-medium text-ios-blue">
             Schedule
           </Link>
         }

@@ -7,6 +7,7 @@ import { ConfirmSubmit } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { deleteMatchAction, updateMatchAction } from "@/app/actions/matches";
 import { prisma } from "@/lib/prisma";
+import { getDistinctOpponentNames } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function EditMatchPage({
 
   if (!(await isAdmin())) redirect(`/login?next=/matches/${matchId}/edit`);
 
-  const [match, grounds, tournaments] = await Promise.all([
+  const [match, grounds, tournaments, opponentSuggestions] = await Promise.all([
     prisma.match.findUnique({ where: { id: matchId } }),
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
     prisma.tournament.findMany({
@@ -31,6 +32,7 @@ export default async function EditMatchPage({
       // The form narrows its ground list to the venues of the chosen tournament.
       include: { grounds: { select: { id: true } } },
     }),
+    getDistinctOpponentNames(),
   ]);
   if (!match) notFound();
 
@@ -54,6 +56,7 @@ export default async function EditMatchPage({
           ...t,
           groundIds: t.grounds.map((g) => g.id),
         }))}
+        opponentSuggestions={opponentSuggestions}
         initial={match}
         submitLabel="Save changes"
       />

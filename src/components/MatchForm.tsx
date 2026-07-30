@@ -33,6 +33,10 @@ export type MatchFormValues = {
   opponentTeam: string;
   groundId: number;
   tournamentId: number | null;
+  result: "WIN" | "LOSS" | "TIE" | "NO_RESULT" | null;
+  ourScore: string | null;
+  opponentScore: string | null;
+  cricheroesUrl: string | null;
   notes: string | null;
 };
 
@@ -40,18 +44,23 @@ export function MatchForm({
   action,
   grounds,
   tournaments,
+  opponentSuggestions = [],
   initial,
   submitLabel,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   grounds: GroundOption[];
   tournaments: TournamentOption[];
+  /** Previously entered opponent names, for the field's autocomplete. */
+  opponentSuggestions?: string[];
   initial?: MatchFormValues;
   submitLabel: string;
 }) {
   const [state, formAction] = useActionState(action, idleState);
+  // Most fixtures are tournament games, so a brand-new match starts there —
+  // an edit still shows whatever the match was actually saved as.
   const [matchType, setMatchType] = useState<"TOURNAMENT" | "PRACTICE">(
-    initial?.matchType ?? "PRACTICE",
+    initial?.matchType ?? "TOURNAMENT",
   );
   const [overs, setOvers] = useState<number>(initial?.overs ?? 20);
   const [tournamentId, setTournamentId] = useState<string>(
@@ -339,8 +348,17 @@ export function MatchForm({
           maxLength={80}
           placeholder="e.g. Royal Strikers"
           defaultValue={initial?.opponentTeam ?? ""}
+          list="opponent-suggestions"
+          autoComplete="off"
           className="input"
         />
+        {/* A native datalist, not a custom dropdown — suggests without
+            forcing a choice, and needs no client-side filtering logic. */}
+        <datalist id="opponent-suggestions">
+          {opponentSuggestions.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </Field>
     ),
   };
@@ -373,7 +391,7 @@ export function MatchForm({
                 onClick={() => setMatchType(type)}
                 className={`flex-1 rounded-[9px] py-2 text-[14px] font-semibold transition-all ${
                   matchType === type
-                    ? "bg-white text-label shadow-sm"
+                    ? "bg-surface text-label shadow-sm"
                     : "text-label-secondary active:opacity-60"
                 }`}
               >
@@ -396,6 +414,70 @@ export function MatchForm({
           <input type="hidden" name="matchNumber" value="" />
         </>
       )}
+
+      <div className="card-pad space-y-4">
+        <p className="section-title">Result</p>
+        <p className="-mt-2 text-[12px] text-label-secondary">
+          Fill this in once the match has been played. Optional.
+        </p>
+
+        <Field label="Result" htmlFor="result" error={err.result}>
+          <select
+            id="result"
+            name="result"
+            defaultValue={initial?.result ?? ""}
+            className="select"
+          >
+            <option value="">Not played yet</option>
+            <option value="WIN">Win</option>
+            <option value="LOSS">Loss</option>
+            <option value="TIE">Tie</option>
+            <option value="NO_RESULT">No result</option>
+          </select>
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Our score" htmlFor="ourScore" error={err.ourScore}>
+            <input
+              id="ourScore"
+              name="ourScore"
+              type="text"
+              maxLength={40}
+              placeholder="e.g. 156/7 (20)"
+              defaultValue={initial?.ourScore ?? ""}
+              className="input"
+            />
+          </Field>
+          <Field label="Opponent score" htmlFor="opponentScore" error={err.opponentScore}>
+            <input
+              id="opponentScore"
+              name="opponentScore"
+              type="text"
+              maxLength={40}
+              placeholder="e.g. 148/9 (20)"
+              defaultValue={initial?.opponentScore ?? ""}
+              className="input"
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Cricheroes link"
+          htmlFor="cricheroesUrl"
+          error={err.cricheroesUrl}
+          hint="Full scorecard, for anyone who wants the ball-by-ball detail."
+        >
+          <input
+            id="cricheroesUrl"
+            name="cricheroesUrl"
+            type="url"
+            maxLength={300}
+            placeholder="https://cricheroes.com/scorecard/…"
+            defaultValue={initial?.cricheroesUrl ?? ""}
+            className="input"
+          />
+        </Field>
+      </div>
 
       <div className="card-pad">
         <Field label="Notes" htmlFor="notes" error={err.notes} hint="Optional.">

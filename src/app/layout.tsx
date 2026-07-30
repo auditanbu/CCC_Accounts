@@ -46,10 +46,28 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * Applies a saved dark-mode preference before first paint. Runs as a plain
+ * script tag rather than an effect: an effect fires after React hydrates,
+ * which is well after the browser has already painted the light-mode HTML —
+ * exactly the flash this exists to avoid. There's no cookie-based theme
+ * here, so this is the only point in the request where the choice is known.
+ */
+const noFlashThemeScript = `(function(){
+  try {
+    if (localStorage.getItem("theme") === "dark") {
+      document.documentElement.dataset.theme = "dark";
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", "#000000");
+    }
+  } catch (e) {}
+})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-dvh">
+        <script dangerouslySetInnerHTML={{ __html: noFlashThemeScript }} />
         <ServiceWorkerRegister />
         <Header />
         <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-5 sm:pb-12">{children}</main>

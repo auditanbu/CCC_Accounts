@@ -280,6 +280,17 @@ export async function getMatchDetail(matchId: number) {
   return { match, totals: computeMatchTotals(match) };
 }
 
+/** Every opponent team name played before, most recent first — powers the
+ * autocomplete on the match form so a repeat fixture doesn't need retyping. */
+export async function getDistinctOpponentNames(): Promise<string[]> {
+  const matches = await prisma.match.findMany({
+    select: { opponentTeam: true },
+    distinct: ["opponentTeam"],
+    orderBy: { date: "desc" },
+  });
+  return matches.map((m) => m.opponentTeam);
+}
+
 /* ------------------------------------------------------------------ */
 /* Tournaments                                                         */
 /* ------------------------------------------------------------------ */
