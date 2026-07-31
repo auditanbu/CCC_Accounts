@@ -6,14 +6,15 @@ import { CheckIcon, ShareIcon } from "@/components/ui/Icons";
 
 type Status = "idle" | "copied" | "error";
 
-/** The team's WhatsApp group — the message is copied, then this is opened so
- * it can be pasted straight in (WhatsApp has no API to pre-fill a group's
- * message from a link, so pasting is still a manual last step). */
+/** The team's WhatsApp group — the message is copied, then this is opened in
+ * the same tab so it can be pasted straight in (WhatsApp has no API to
+ * pre-fill a group's message from a link, so pasting is still a manual last
+ * step). */
 const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/LKsSaTjsiYXLf80aeUEbQa";
 
 /**
- * Copies the pre-rendered WhatsApp summary to the clipboard and opens the
- * team's group chat so it can be pasted in.
+ * Copies the pre-rendered WhatsApp summary to the clipboard and navigates to
+ * the team's group chat so it can be pasted in — no new tab.
  *
  * `navigator.clipboard` needs a secure context, which a plain-http Railway
  * preview or an in-app browser may not provide, so there's a textarea
@@ -34,14 +35,14 @@ export function ShareButton({ text }: { text: string }) {
     timer.current = setTimeout(() => setStatus("idle"), 2400);
   }
 
-  function copyAndOpen() {
-    // Opened synchronously, in the same click handler, so browsers don't
-    // treat it as an unrequested popup — an await before this would.
-    window.open(WHATSAPP_GROUP_URL, "_blank", "noopener,noreferrer");
-    void copyText();
+  async function copyAndOpen() {
+    const copied = await copyText();
+    // Same tab, no new tab — and only once the copy actually landed, so a
+    // failed copy leaves the page in place with the manual-copy preview.
+    if (copied) window.location.href = WHATSAPP_GROUP_URL;
   }
 
-  async function copyText() {
+  async function copyText(): Promise<boolean> {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -49,9 +50,11 @@ export function ShareButton({ text }: { text: string }) {
         throw new Error("copy unavailable");
       }
       flash("copied");
+      return true;
     } catch {
       setShowPreview(true);
       flash("error");
+      return false;
     }
   }
 
