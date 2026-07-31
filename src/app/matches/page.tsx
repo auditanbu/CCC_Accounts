@@ -5,7 +5,7 @@ import { MatchTypeBadge, ResultBadge } from "@/components/MatchCard";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
-import { formatDateLong, formatMonthYear, formatTime, istParts, relativeDay } from "@/lib/format";
+import { formatMonthYear, formatTime, istParts, relativeDay } from "@/lib/format";
 import { getMatchesSplit } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
@@ -80,7 +80,6 @@ function MatchRow({ match, showMoney }: { match: Row; showMoney: boolean }) {
 
 export default async function MatchesPage() {
   const [{ played, upcoming }, admin] = await Promise.all([getMatchesSplit(), isAdmin()]);
-  const next = upcoming[0];
 
   return (
     <div className="space-y-7">
@@ -98,27 +97,6 @@ export default async function MatchesPage() {
           </Link>
         ) : null}
       </div>
-
-      {next ? (
-        <Link
-          href={`/matches/${next.id}`}
-          className="card block overflow-hidden bg-gradient-to-br from-ios-blue to-ios-indigo p-5 text-white shadow-float transition-transform active:scale-[0.99]"
-        >
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-white/75">
-            Next up · {relativeDay(next.date)}
-          </p>
-          <p className="mt-1.5 text-[22px] font-bold tracking-[-0.02em]">
-            vs {next.opponentTeam}
-          </p>
-          <p className="mt-1 text-[13px] text-white/85">
-            {formatDateLong(next.date)} · {formatTime(next.date)}
-          </p>
-          <p className="mt-0.5 text-[13px] text-white/85">
-            🏟 {next.ground.name}
-            {next.ground.location ? `, ${next.ground.location}` : ""} · {next.overs} overs
-          </p>
-        </Link>
-      ) : null}
 
       <Section title={`Upcoming · ${upcoming.length}`}>
         {upcoming.length === 0 ? (

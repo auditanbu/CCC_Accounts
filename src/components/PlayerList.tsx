@@ -8,20 +8,12 @@ import { Money } from "@/components/ui/Money";
 import { formatMoney } from "@/lib/format";
 import type { PlayerPending } from "@/lib/queries";
 
-type SortKey = "jersey" | "name" | "balance";
-
-const SORTERS: Record<SortKey, (a: PlayerPending, b: PlayerPending) => number> = {
-  jersey: (a, b) => a.jerseyNumber - b.jerseyNumber,
-  name: (a, b) => a.name.localeCompare(b.name),
-  // Highest amount owed first, so the players who most need chasing surface
-  // at the top — matches the sort the home page's pendings list already uses.
-  balance: (a, b) => b.pending - a.pending,
-};
+type SortKey = "name" | "balance" | "jersey";
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "jersey", label: "Jersey" },
   { key: "name", label: "Name" },
   { key: "balance", label: "Balance" },
+  { key: "jersey", label: "Jersey" },
 ];
 
 function PlayerRow({ p }: { p: PlayerPending }) {
@@ -78,12 +70,31 @@ function PlayerRow({ p }: { p: PlayerPending }) {
 /** The active squad list, with a sort control — inactive players don't get
  * one since that list is short and always jersey-ordered. */
 export function ActiveSquadList({ players }: { players: PlayerPending[] }) {
-  const [sort, setSort] = useState<SortKey>("jersey");
+  const [sort, setSort] = useState<SortKey>("name");
+  // Balance's own direction, independent of which sort is currently active —
+  // remembered across clicks so re-picking Balance resumes where it left off.
+  const [balanceDesc, setBalanceDesc] = useState(true);
 
-  const sorted = useMemo(
-    () => [...players].sort(SORTERS[sort]),
-    [players, sort],
-  );
+  function pick(key: SortKey) {
+    if (key === "balance" && sort === "balance") {
+      // Clicking Balance again flips direction instead of doing nothing.
+      setBalanceDesc((v) => !v);
+      return;
+    }
+    setSort(key);
+  }
+
+  const sorted = useMemo(() => {
+    const comparator: (a: PlayerPending, b: PlayerPending) => number =
+      sort === "name"
+        ? (a, b) => a.name.localeCompare(b.name)
+        : sort === "jersey"
+          ? (a, b) => a.jerseyNumber - b.jerseyNumber
+          : // Highest amount owed first by default, then flips to highest
+            // credit first — click Balance again to toggle.
+            (a, b) => (balanceDesc ? b.pending - a.pending : a.pending - b.pending);
+    return [...players].sort(comparator);
+  }, [players, sort, balanceDesc]);
 
   return (
     <div className="space-y-2">
@@ -93,10 +104,10 @@ export function ActiveSquadList({ players }: { players: PlayerPending[] }) {
             key={opt.key}
             type="button"
             aria-pressed={sort === opt.key}
-            onClick={() => setSort(opt.key)}
+            onClick={() => pick(opt.key)}
             className={`btn btn-sm ${sort === opt.key ? "bg-ios-blue text-white" : "bg-black/[0.05] text-label"}`}
           >
-            {opt.label}
+            {opt.key === "balance" ? `Balance ${sort === "balance" && !balanceDesc ? "↑" : "↓"}` : opt.label}
           </button>
         ))}
       </div>

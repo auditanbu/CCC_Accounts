@@ -159,7 +159,8 @@ export async function createMatchAction(
     return { ok: true, message: "Match created." };
   });
 
-  if (state.ok && newId !== null) redirect(`/matches/${newId}`);
+  // Straight into picking the XI — creating a fixture is rarely the end goal.
+  if (state.ok && newId !== null) redirect(`/matches/${newId}?edit=1`);
   return state;
 }
 

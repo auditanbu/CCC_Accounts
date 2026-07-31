@@ -6,8 +6,14 @@ import { CheckIcon, ShareIcon } from "@/components/ui/Icons";
 
 type Status = "idle" | "copied" | "error";
 
+/** The team's WhatsApp group — the message is copied, then this is opened so
+ * it can be pasted straight in (WhatsApp has no API to pre-fill a group's
+ * message from a link, so pasting is still a manual last step). */
+const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/LKsSaTjsiYXLf80aeUEbQa";
+
 /**
- * Copies the pre-rendered WhatsApp summary to the clipboard.
+ * Copies the pre-rendered WhatsApp summary to the clipboard and opens the
+ * team's group chat so it can be pasted in.
  *
  * `navigator.clipboard` needs a secure context, which a plain-http Railway
  * preview or an in-app browser may not provide, so there's a textarea
@@ -28,7 +34,14 @@ export function ShareButton({ text }: { text: string }) {
     timer.current = setTimeout(() => setStatus("idle"), 2400);
   }
 
-  async function copy() {
+  function copyAndOpen() {
+    // Opened synchronously, in the same click handler, so browsers don't
+    // treat it as an unrequested popup — an await before this would.
+    window.open(WHATSAPP_GROUP_URL, "_blank", "noopener,noreferrer");
+    void copyText();
+  }
+
+  async function copyText() {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -42,38 +55,25 @@ export function ShareButton({ text }: { text: string }) {
     }
   }
 
-  const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
-
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={copy}
-          className={status === "copied" ? "btn-success flex-1" : "btn-primary flex-1"}
-        >
-          {status === "copied" ? (
-            <>
-              <CheckIcon width={17} height={17} />
-              Copied to clipboard
-            </>
-          ) : (
-            <>
-              <ShareIcon width={17} height={17} />
-              Copy summary for WhatsApp
-            </>
-          )}
-        </button>
-
-        <a
-          href={waHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary sm:w-auto"
-        >
-          Open WhatsApp
-        </a>
-      </div>
+      <button
+        type="button"
+        onClick={copyAndOpen}
+        className={status === "copied" ? "btn-success w-full" : "btn-primary w-full"}
+      >
+        {status === "copied" ? (
+          <>
+            <CheckIcon width={17} height={17} />
+            Copied — paste it in WhatsApp
+          </>
+        ) : (
+          <>
+            <ShareIcon width={17} height={17} />
+            Copy & open WhatsApp group
+          </>
+        )}
+      </button>
 
       {status === "error" ? (
         <p role="alert" className="text-[13px] font-medium text-ios-red">

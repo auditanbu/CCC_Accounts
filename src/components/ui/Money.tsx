@@ -67,7 +67,7 @@ export function StatCard({
       <p
         className={cn(
           "font-semibold uppercase tracking-[0.05em] text-label-secondary",
-          compact ? "text-[10px]" : "text-[12px]",
+          compact ? "text-[11px]" : "text-[12px]",
         )}
       >
         {label}
@@ -75,15 +75,13 @@ export function StatCard({
       <p
         className={cn(
           "font-bold leading-none tracking-[-0.02em]",
-          compact ? "mt-1 text-[16px] sm:text-[18px]" : "mt-1.5 text-[24px] sm:text-[26px]",
+          compact ? "mt-1 text-[18px] sm:text-[20px]" : "mt-1.5 text-[24px] sm:text-[26px]",
         )}
       >
         {typeof value === "number" ? <Money value={value} tone={tone} /> : value}
       </p>
       {caption ? (
-        <p className={cn("mt-1.5 text-label-secondary", compact ? "text-[11px]" : "text-[12px]")}>
-          {caption}
-        </p>
+        <p className="mt-1.5 text-[12px] text-label-secondary">{caption}</p>
       ) : null}
     </div>
   );

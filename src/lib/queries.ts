@@ -263,6 +263,20 @@ export async function getUpcomingMatches(limit = 5) {
   return matches;
 }
 
+/**
+ * Playing XI of the most recently played match before this one — lets the
+ * roster editor default a new match sheet to whoever turned out last time.
+ */
+export async function getLastPlayedRosterIds(excludeMatchId: number): Promise<number[]> {
+  const today = startOfTodayIST();
+  const last = await prisma.match.findFirst({
+    where: { id: { not: excludeMatchId }, date: { lt: today } },
+    orderBy: { date: "desc" },
+    include: { players: { where: { isPresent: true }, select: { playerId: true } } },
+  });
+  return last?.players.map((p) => p.playerId) ?? [];
+}
+
 export async function getMatchDetail(matchId: number) {
   const match = await prisma.match.findUnique({
     where: { id: matchId },

@@ -52,9 +52,20 @@ export async function createPlayerAction(
   return runAction(async () => {
     await requireAdmin();
     const data = parse(formData);
-    await prisma.player.create({ data });
+    const created = await prisma.player.create({ data });
     revalidatePlayers();
-    return { ok: true, message: `${data.name} added to the squad.` };
+    return {
+      ok: true,
+      message: `${data.name} added to the squad.`,
+      // Lets a caller (e.g. the roster editor) add them to a match sheet
+      // straight away, without re-fetching the squad list.
+      created: {
+        id: created.id,
+        name: created.name,
+        jerseyNumber: created.jerseyNumber,
+        defaultMatchFee: created.defaultMatchFee,
+      },
+    };
   });
 }
 

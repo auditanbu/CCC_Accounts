@@ -2,19 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ExpenseForm } from "@/app/matches/[id]/ExpenseForm";
+import { ExpenseSection } from "@/app/matches/[id]/ExpenseSection";
 import { RosterEditor, type RosterRow } from "@/app/matches/[id]/RosterEditor";
-import { deleteExpenseAction } from "@/app/actions/matches";
 import { MatchTypeBadge, ResultBadge } from "@/components/MatchCard";
 import { ShareButton } from "@/components/ShareButton";
 import { EmptyState, Section } from "@/components/ui/Card";
-import { ConfirmSubmit } from "@/components/ui/Form";
-import { ChevronLeftIcon, PencilIcon, TrashIcon } from "@/components/ui/Icons";
+import { ChevronLeftIcon, PencilIcon } from "@/components/ui/Icons";
 import { Money } from "@/components/ui/Money";
-import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
-import { formatDateLong, formatMoney, formatTime, initials } from "@/lib/format";
+import { TEAM_NAME } from "@/lib/constants";
+import { formatDateLong, formatMoney, formatTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { getMatchDetail, getPlayerPendings, getTeamBalance } from "@/lib/queries";
+import {
+  getLastPlayedRosterIds,
+  getMatchDetail,
+  getPlayerPendings,
+  getTeamBalance,
+} from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { buildWhatsAppSummary } from "@/lib/whatsapp";
 
@@ -35,27 +38,32 @@ export async function generateMetadata({
 
 export default async function MatchDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { id } = await params;
   const matchId = Number(id);
   if (!Number.isInteger(matchId)) notFound();
+  const { edit } = await searchParams;
 
   const detail = await getMatchDetail(matchId);
   if (!detail) notFound();
 
   const { match, totals } = detail;
 
-  const [admin, teamBalance, playerPendings, activePlayers] = await Promise.all([
-    isAdmin(),
-    getTeamBalance(),
-    getPlayerPendings(),
-    prisma.player.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { jerseyNumber: "asc" },
-    }),
-  ]);
+  const [admin, teamBalance, playerPendings, activePlayers, lastMatchPlayerIds] =
+    await Promise.all([
+      isAdmin(),
+      getTeamBalance(),
+      getPlayerPendings(),
+      prisma.player.findMany({
+        where: { status: "ACTIVE" },
+        orderBy: { jerseyNumber: "asc" },
+      }),
+      getLastPlayedRosterIds(matchId),
+    ]);
 
   // Roster candidates: everyone currently active, plus anyone already on this
   // match sheet (so a since-retired player's record stays editable).
@@ -245,15 +253,6 @@ export default async function MatchDetailPage({
         </div>
       </Section>
 
-      {/* WhatsApp export */}
-      {admin ? (
-        <Section title="Share">
-          <div className="card-pad">
-            <ShareButton text={whatsappText} />
-          </div>
-        </Section>
-      ) : null}
-
       {/* Roster */}
       <Section title={admin ? "Roster & collections" : `Playing XI · ${present.length}`}>
         {admin ? (
@@ -269,7 +268,12 @@ export default async function MatchDetailPage({
               }
             />
           ) : (
-            <RosterEditor matchId={match.id} rows={rosterRows} />
+            <RosterEditor
+              matchId={match.id}
+              rows={rosterRows}
+              lastMatchPlayerIds={lastMatchPlayerIds}
+              forceEdit={edit === "1"}
+            />
           )
         ) : present.length === 0 ? (
           <EmptyState
@@ -279,12 +283,14 @@ export default async function MatchDetailPage({
           />
         ) : (
           <ul className="list-group">
-            {present.map((mp) => {
+            {[...present]
+              .sort((a, b) => a.player.name.localeCompare(b.player.name))
+              .map((mp) => {
               const due = mp.payableAmount - mp.collectedAmount;
               return (
                 <li key={mp.id} className="list-row">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-blue/12 text-[13px] font-semibold text-ios-blue">
-                    {initials(mp.player.name)}
+                    {mp.player.jerseyNumber}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium">
@@ -320,56 +326,17 @@ export default async function MatchDetailPage({
 
       {/* Expenses */}
       <Section title={`Expenses · ${formatMoney(totals.expenses)}`}>
-        {match.expenses.length === 0 ? (
-          <EmptyState
-            icon="🧾"
-            title="No expenses recorded"
-            description={
-              admin
-                ? "Add ball fee, ground fee, water and anything else spent on this match."
-                : "Nothing has been spent on this match yet."
-            }
-          />
-        ) : (
-          <ul className="list-group">
-            {match.expenses.map((e) => (
-              <li key={e.id} className="list-row">
-                <span
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                    CATEGORY_COLORS[e.category] ?? "bg-ios-gray"
-                  }`}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-medium">{e.category}</span>
-                  {e.note ? (
-                    <span className="block truncate text-[12px] text-label-secondary">
-                      {e.note}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="tnum shrink-0 text-[15px] font-semibold">
-                  {formatMoney(e.amount)}
-                </span>
-                {admin ? (
-                  <form action={deleteExpenseAction} className="shrink-0">
-                    <input type="hidden" name="id" value={e.id} />
-                    <ConfirmSubmit
-                      message={`Delete the ${e.category} expense of ${formatMoney(e.amount)}?`}
-                      className="btn btn-sm -mr-1.5 px-1.5 text-label-tertiary hover:text-ios-red"
-                    >
-                      <TrashIcon width={17} height={17} />
-                      <span className="sr-only">Delete expense</span>
-                    </ConfirmSubmit>
-                  </form>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {admin ? <ExpenseForm matchId={match.id} /> : null}
+        <ExpenseSection matchId={match.id} expenses={match.expenses} admin={admin} />
       </Section>
+
+      {/* WhatsApp export */}
+      {admin ? (
+        <Section title="Share">
+          <div className="card-pad">
+            <ShareButton text={whatsappText} />
+          </div>
+        </Section>
+      ) : null}
     </div>
   );
 }

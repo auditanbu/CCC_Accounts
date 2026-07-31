@@ -4,7 +4,9 @@ import { useActionState, useMemo, useState } from "react";
 
 import { saveRosterAction } from "@/app/actions/matches";
 import { idleState } from "@/app/actions/types";
+import { NewPlayerButton } from "@/components/PlayerForm";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
+import { PencilIcon } from "@/components/ui/Icons";
 import { formatMoney, round2 } from "@/lib/format";
 
 export type RosterRow = {
@@ -39,8 +41,39 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterRow[] }) {
+const byName = (a: RosterRow, b: RosterRow) => a.name.localeCompare(b.name);
+
+function Avatar({ jerseyNumber, active }: { jerseyNumber: number; active: boolean }) {
+  return (
+    <span
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold transition-colors ${
+        active ? "bg-ios-blue/12 text-ios-blue" : "bg-black/[0.05] text-label-tertiary"
+      }`}
+      aria-hidden
+    >
+      {jerseyNumber}
+    </span>
+  );
+}
+
+export function RosterEditor({
+  matchId,
+  rows,
+  lastMatchPlayerIds = [],
+  forceEdit = false,
+}: {
+  matchId: number;
+  rows: RosterRow[];
+  /** Players who turned out in the previous match — pinned to the top when selecting. */
+  lastMatchPlayerIds?: number[];
+  /** Opens straight into edit mode — used right after creating a new match. */
+  forceEdit?: boolean;
+}) {
   const [state, action] = useActionState(saveRosterAction, idleState);
+  const [editing, setEditing] = useState(forceEdit);
+  // Local copy so a player added inline (without leaving the page) shows up
+  // as a candidate immediately.
+  const [allRows, setAllRows] = useState<RosterRow[]>(rows);
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
     Object.fromEntries(rows.map((r) => [r.playerId, toDraft(r)])),
   );
@@ -66,38 +99,46 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
     );
   }
 
-  function setAll(present: boolean) {
-    setDrafts((prev) =>
-      Object.fromEntries(
-        rows.map((r) => [
-          r.playerId,
-          present
-            ? { ...prev[r.playerId]!, present: true, payable: String(r.defaultMatchFee) }
-            : { present: false, payable: "", collected: "", mode: "" as const },
-        ]),
-      ),
-    );
+  /** UPI <-> Cash only — "not recorded" is implied whenever nothing's collected. */
+  function toggleMode(playerId: number) {
+    setDrafts((prev) => {
+      const d = prev[playerId]!;
+      return { ...prev, [playerId]: { ...d, mode: d.mode === "CASH" ? "UPI" : "CASH" } };
+    });
   }
 
-  /** Fill every present player's collected amount with what they owe. */
-  function collectAll(mode: "UPI" | "CASH") {
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const r of rows) {
-        const d = next[r.playerId]!;
-        if (!d.present) continue;
-        const payable = d.payable === "" ? r.defaultMatchFee : num(d.payable);
-        next[r.playerId] = { ...d, collected: String(payable), mode: payable > 0 ? mode : "" };
-      }
-      return next;
-    });
+  function handleNewPlayer(p: {
+    id: number;
+    name: string;
+    jerseyNumber: number;
+    defaultMatchFee: number;
+  }) {
+    setAllRows((prev) => [
+      ...prev,
+      {
+        playerId: p.id,
+        name: p.name,
+        jerseyNumber: p.jerseyNumber,
+        defaultMatchFee: p.defaultMatchFee,
+        isPresent: false,
+        payableAmount: p.defaultMatchFee,
+        collectedAmount: 0,
+        paymentMode: null,
+      },
+    ]);
+    // Adding them here means putting them on this match sheet — check them
+    // in straight away instead of making that a second step.
+    setDrafts((prev) => ({
+      ...prev,
+      [p.id]: { present: true, payable: String(p.defaultMatchFee), collected: "", mode: "" },
+    }));
   }
 
   const totals = useMemo(() => {
     let payable = 0;
     let collected = 0;
     let playing = 0;
-    for (const r of rows) {
+    for (const r of allRows) {
       const d = drafts[r.playerId]!;
       if (!d.present) continue;
       playing += 1;
@@ -110,159 +151,178 @@ export function RosterEditor({ matchId, rows }: { matchId: number; rows: RosterR
       pending: round2(payable - collected),
       playing,
     };
-  }, [drafts, rows]);
+  }, [drafts, allRows]);
+
+  // Attendance step: whoever played last time surfaces first, so re-picking
+  // the same XI is fast; everyone else follows, alphabetically.
+  const attendanceOrder = useMemo(() => {
+    const lastSet = new Set(lastMatchPlayerIds);
+    const last = allRows.filter((r) => lastSet.has(r.playerId)).sort(byName);
+    const rest = allRows.filter((r) => !lastSet.has(r.playerId)).sort(byName);
+    return [...last, ...rest];
+  }, [allRows, lastMatchPlayerIds]);
+
+  // Collections step: plain alphabetical — the "who played last" grouping
+  // only helps while picking the XI, not while collecting money from it.
+  const collectionsOrder = useMemo(() => [...allRows].sort(byName), [allRows]);
+
+  const visibleRows = showCollections
+    ? collectionsOrder.filter((row) => drafts[row.playerId]!.present)
+    : attendanceOrder;
+
+  const nextJersey = allRows.length > 0 ? Math.max(...allRows.map((r) => r.jerseyNumber)) + 1 : 1;
+
+  if (!editing) {
+    const present = [...rows].filter((r) => r.isPresent).sort(byName);
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <button type="button" onClick={() => setEditing(true)} className="btn-secondary btn-sm">
+            <PencilIcon width={15} height={15} />
+            Edit roster
+          </button>
+        </div>
+
+        {present.length === 0 ? (
+          <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
+            No players marked yet — tap Edit roster to select the XI.
+          </p>
+        ) : (
+          <ul className="list-group">
+            {present.map((row) => {
+              const due = round2(row.payableAmount - row.collectedAmount);
+              return (
+                <li key={row.playerId} className="list-row">
+                  <Avatar jerseyNumber={row.jerseyNumber} active />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-medium">{row.name}</span>
+                    <span className="block text-[12px] text-label-secondary">
+                      #{row.jerseyNumber}
+                    </span>
+                  </span>
+                  {due > 0 ? (
+                    <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
+                      {formatMoney(due)} due
+                    </span>
+                  ) : row.collectedAmount > 0 ? (
+                    <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">Paid</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="matchId" value={matchId} />
 
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => setAll(true)} className="btn-secondary btn-sm">
-          Select all
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCollections((v) => !v)}
+            className="btn-tinted btn-sm"
+          >
+            {showCollections ? "Hide collections" : "Record collections"}
+          </button>
+          <NewPlayerButton onCreated={handleNewPlayer} suggestedJersey={nextJersey} />
+        </div>
+        <button type="button" onClick={() => setEditing(false)} className="btn-secondary btn-sm">
+          Done
         </button>
-        <button type="button" onClick={() => setAll(false)} className="btn-secondary btn-sm">
-          Clear all
-        </button>
-        <span className="mx-1 hidden w-px self-stretch bg-separator sm:block" />
-        <button
-          type="button"
-          onClick={() => setShowCollections((v) => !v)}
-          className="btn-tinted btn-sm"
-        >
-          {showCollections ? "Hide collections" : "Record collections"}
-        </button>
-        {showCollections ? (
-          <>
-            <button type="button" onClick={() => collectAll("UPI")} className="btn-tinted btn-sm">
-              All paid · UPI
-            </button>
-            <button type="button" onClick={() => collectAll("CASH")} className="btn-tinted btn-sm">
-              All paid · Cash
-            </button>
-          </>
-        ) : null}
       </div>
 
-      {showCollections && rows.every((r) => !drafts[r.playerId]!.present) ? (
+      {showCollections && visibleRows.length === 0 ? (
         <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
           No players marked present yet — hide collections and select the XI first.
         </p>
       ) : (
         <ul className="list-group">
-          {rows
-            // The attendance step already decided who played; this step is
-            // money-only, so anyone not selected there has nothing to show here.
-            .filter((row) => !showCollections || drafts[row.playerId]!.present)
-            .map((row) => {
-              const d = drafts[row.playerId]!;
-              const payableNum = d.payable === "" ? row.defaultMatchFee : num(d.payable);
-              const short = round2(payableNum - num(d.collected));
+          {visibleRows.map((row) => {
+            const d = drafts[row.playerId]!;
 
+            if (showCollections) {
+              const pending = d.collected === "" || num(d.collected) <= 0;
+              const modeLabel = pending ? "Pending" : d.mode === "CASH" ? "Cash" : "UPI";
               return (
-                <li key={row.playerId} className="px-4 py-3">
-                  {/* Always post the id so the server sees absentees explicitly. */}
+                <li key={row.playerId} className="px-4 py-2.5">
                   <input type="hidden" name="player" value={row.playerId} />
-                  {/* Row is only rendered here when already present, but the
-                      checkbox itself is hidden in this step — post it directly. */}
-                  {showCollections ? (
-                    <input type="hidden" name={`present-${row.playerId}`} value="on" />
-                  ) : null}
-                  {/* Payable is hidden in this step too; keep submitting whatever
-                      it was set to (the default fee, unless edited elsewhere). */}
-                  {showCollections ? (
-                    <input type="hidden" name={`payable-${row.playerId}`} value={d.payable} />
-                  ) : null}
-
-                  <label
-                    className={`flex items-center gap-3 ${showCollections ? "" : "cursor-pointer"}`}
-                  >
-                    {showCollections ? null : (
-                      <input
-                        type="checkbox"
-                        name={`present-${row.playerId}`}
-                        checked={d.present}
-                        onChange={(e) => togglePresent(row, e.target.checked)}
-                        className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-md border-black/15 text-ios-blue accent-ios-blue focus:ring-ios-blue"
-                      />
-                    )}
-                    <span
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold transition-colors ${
-                        d.present
-                          ? "bg-ios-blue/12 text-ios-blue"
-                          : "bg-black/[0.05] text-label-tertiary"
+                  <input type="hidden" name={`present-${row.playerId}`} value="on" />
+                  <input type="hidden" name={`payable-${row.playerId}`} value={d.payable} />
+                  <input type="hidden" name={`mode-${row.playerId}`} value={d.mode || "UPI"} />
+                  <div className="flex items-center gap-2.5">
+                    <Avatar jerseyNumber={row.jerseyNumber} active />
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
+                      {row.name}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="1"
+                      placeholder="0"
+                      aria-label={`Collected from ${row.name}`}
+                      value={d.collected}
+                      onChange={(e) => {
+                        const collected = e.target.value;
+                        // Suggest UPI the moment an amount is entered, but only
+                        // if no mode has been picked yet — don't clobber Cash.
+                        const mode = d.mode === "" && num(collected) > 0 ? "UPI" : d.mode;
+                        update(row.playerId, { collected, mode });
+                      }}
+                      className="input w-20 shrink-0 px-2 py-1.5 text-right text-[14px] tnum"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleMode(row.playerId)}
+                      className={`btn btn-sm w-[70px] shrink-0 ${
+                        pending
+                          ? "bg-black/[0.05] text-label-tertiary"
+                          : d.mode === "CASH"
+                            ? "bg-ios-teal/12 text-ios-teal"
+                            : "bg-ios-blue/12 text-ios-blue"
                       }`}
-                      aria-hidden
                     >
-                      {row.jerseyNumber}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={`block truncate text-[15px] font-medium ${
-                          d.present ? "" : "text-label-secondary"
-                        }`}
-                      >
-                        {row.name}
-                      </span>
-                      <span className="block text-[12px] text-label-secondary">
-                        #{row.jerseyNumber} · default {formatMoney(row.defaultMatchFee)}
-                      </span>
-                    </span>
-                    {d.present && short > 0 ? (
-                      <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
-                        {formatMoney(short)} due
-                      </span>
-                    ) : null}
-                    {d.present && short <= 0 && num(d.collected) > 0 ? (
-                      <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">Paid</span>
-                    ) : null}
-                  </label>
-
-                  {d.present && showCollections ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="mb-1 block text-[11px] font-medium text-label-secondary">
-                          Collected ₹
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step="1"
-                          placeholder="0"
-                          name={`collected-${row.playerId}`}
-                          value={d.collected}
-                          onChange={(e) => {
-                            const collected = e.target.value;
-                            // Suggest UPI the moment an amount is entered, but only
-                            // if no mode has been picked yet — don't clobber Cash.
-                            const mode = d.mode === "" && num(collected) > 0 ? "UPI" : d.mode;
-                            update(row.playerId, { collected, mode });
-                          }}
-                          className="input px-2.5 py-1.5 text-[14px]"
-                        />
-                      </div>
-                      <div>
-                        <span className="mb-1 block text-[11px] font-medium text-label-secondary">
-                          Mode
-                        </span>
-                        <select
-                          name={`mode-${row.playerId}`}
-                          value={d.mode}
-                          onChange={(e) =>
-                            update(row.playerId, { mode: e.target.value as Draft["mode"] })
-                          }
-                          className="select px-2.5 py-1.5 text-[14px]"
-                        >
-                          <option value="">Not recorded</option>
-                          <option value="UPI">UPI</option>
-                          <option value="CASH">Cash</option>
-                        </select>
-                      </div>
-                    </div>
-                  ) : null}
+                      {modeLabel}
+                    </button>
+                  </div>
                 </li>
               );
-            })}
+            }
+
+            return (
+              <li key={row.playerId} className="px-4 py-3">
+                {/* Always post the id so the server sees absentees explicitly. */}
+                <input type="hidden" name="player" value={row.playerId} />
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name={`present-${row.playerId}`}
+                    checked={d.present}
+                    onChange={(e) => togglePresent(row, e.target.checked)}
+                    className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-md border-black/15 text-ios-blue accent-ios-blue focus:ring-ios-blue"
+                  />
+                  <Avatar jerseyNumber={row.jerseyNumber} active={d.present} />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-[15px] font-medium ${
+                        d.present ? "" : "text-label-secondary"
+                      }`}
+                    >
+                      {row.name}
+                    </span>
+                    <span className="block text-[12px] text-label-secondary">
+                      #{row.jerseyNumber}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
         </ul>
       )}
 

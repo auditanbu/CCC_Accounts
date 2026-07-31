@@ -6,6 +6,7 @@ import { createPlayerAction, updatePlayerAction } from "@/app/actions/players";
 import { idleState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PlusIcon } from "@/components/ui/Icons";
+import { Sheet } from "@/components/ui/Sheet";
 import { MATCH_FEE_OPTIONS } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 
@@ -170,6 +171,57 @@ export function AddPlayerForm({ suggestedJersey }: { suggestedJersey?: number })
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Creates a player from inside another form — the roster editor, where
+ * needing one is discovered mid-flow. Reports the new record back so the
+ * caller can drop them straight onto the match sheet.
+ */
+export function NewPlayerButton({
+  onCreated,
+  suggestedJersey,
+}: {
+  onCreated: (player: { id: number; name: string; jerseyNumber: number; defaultMatchFee: number }) => void;
+  suggestedJersey?: number;
+}) {
+  const [state, action] = useActionState(createPlayerAction, idleState);
+  const [open, setOpen] = useState(false);
+  const handled = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (state.ok && state.created && handled.current !== state.created.id) {
+      handled.current = state.created.id;
+      onCreated({
+        id: state.created.id,
+        name: state.created.name,
+        jerseyNumber: state.created.jerseyNumber ?? 0,
+        defaultMatchFee: state.created.defaultMatchFee ?? 0,
+      });
+      setOpen(false);
+    }
+  }, [state, onCreated]);
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="btn-tinted btn-sm">
+        <PlusIcon width={15} height={15} strokeWidth={2.2} />
+        Add player
+      </button>
+
+      {/*
+        A nested <form> is invalid HTML, so this sheet is rendered by the
+        caller outside its own form element — see RosterEditor.
+      */}
+      <Sheet open={open} onClose={() => setOpen(false)} title="New player">
+        <form action={action} className="card-pad space-y-4">
+          <Fields fieldErrors={state.fieldErrors ?? {}} suggestedJersey={suggestedJersey} />
+          <FormMessage state={state} />
+          <SubmitButton className="btn-primary w-full">Add to squad</SubmitButton>
+        </form>
+      </Sheet>
+    </>
   );
 }
 
