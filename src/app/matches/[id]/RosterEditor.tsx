@@ -96,13 +96,20 @@ export function RosterEditor({
 
   /**
    * Ticking a player in pulls their profile fee across automatically; ticking
-   * out clears the money so an absentee never carries a balance.
+   * out clears the money so an absentee never carries a balance. Ticking back
+   * in restores whatever was already on file for this match — an accidental
+   * uncheck-then-recheck shouldn't discard a real payment.
    */
   function togglePresent(row: RosterRow, present: boolean) {
     update(
       row.playerId,
       present
-        ? { present: true, payable: String(row.defaultMatchFee) }
+        ? {
+            present: true,
+            payable: String(row.defaultMatchFee),
+            collected: row.collectedAmount ? String(row.collectedAmount) : "",
+            mode: row.paymentMode ?? "",
+          }
         : { present: false, payable: "", collected: "", mode: "" },
     );
   }
@@ -278,6 +285,7 @@ export function RosterEditor({
                       min={0}
                       step="1"
                       placeholder="0"
+                      name={`collected-${row.playerId}`}
                       aria-label={`Collected from ${row.name}`}
                       value={d.collected}
                       onChange={(e) => {
@@ -311,6 +319,16 @@ export function RosterEditor({
               <li key={row.playerId} className="px-4 py-3">
                 {/* Always post the id so the server sees absentees explicitly. */}
                 <input type="hidden" name="player" value={row.playerId} />
+                {/*
+                  This step only shows the checkbox, but money already on
+                  file for this player has to travel with the submit too —
+                  otherwise saving from here (without ever opening Record
+                  collections) would report 0 collected for everyone and
+                  wipe out real payments.
+                */}
+                <input type="hidden" name={`payable-${row.playerId}`} value={d.payable} />
+                <input type="hidden" name={`collected-${row.playerId}`} value={d.collected} />
+                <input type="hidden" name={`mode-${row.playerId}`} value={d.mode || "UPI"} />
                 <label className="flex cursor-pointer items-center gap-3">
                   <input
                     type="checkbox"
