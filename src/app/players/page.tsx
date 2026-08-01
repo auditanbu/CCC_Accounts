@@ -19,8 +19,8 @@ export default async function PlayersPage() {
   // The flip side of pending — players who've paid in more than they owe.
   const totalExcess = players.reduce((s, p) => s + Math.max(-p.pending, 0), 0);
 
-  const nextJersey =
-    players.length > 0 ? Math.max(...players.map((p) => p.jerseyNumber)) + 1 : 1;
+  const takenJerseys = players.map((p) => p.jerseyNumber).filter((n): n is number => n !== null);
+  const nextJersey = takenJerseys.length > 0 ? Math.max(...takenJerseys) + 1 : 1;
 
   return (
     <div className="space-y-7">

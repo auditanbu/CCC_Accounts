@@ -10,7 +10,7 @@ import { EmptyState, Section } from "@/components/ui/Card";
 import { ChevronLeftIcon, PencilIcon } from "@/components/ui/Icons";
 import { Money } from "@/components/ui/Money";
 import { TEAM_NAME } from "@/lib/constants";
-import { formatDateLong, formatMoney, formatTime } from "@/lib/format";
+import { avatarLabel, formatDateLong, formatMoney, formatTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
   getLastPlayedRosterIds,
@@ -75,7 +75,7 @@ export default async function MatchDetailPage({
   const seen = new Set<number>();
   const rosterRows: RosterRow[] = candidates
     .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
-    .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
+    .sort((a, b) => (a.jerseyNumber ?? Infinity) - (b.jerseyNumber ?? Infinity))
     .map((p) => {
       const mp = existingById.get(p.id);
       return {
@@ -290,15 +290,17 @@ export default async function MatchDetailPage({
               return (
                 <li key={mp.id} className="list-row">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-blue/12 text-[13px] font-semibold text-ios-blue">
-                    {mp.player.jerseyNumber}
+                    {avatarLabel(mp.player.name, mp.player.jerseyNumber)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium">
                       {mp.player.name}
                     </span>
                     <span className="block text-[12px] text-label-secondary">
-                      #{mp.player.jerseyNumber}
-                      {mp.paymentMode ? ` · paid by ${mp.paymentMode === "UPI" ? "UPI" : "cash"}` : ""}
+                      {mp.player.jerseyNumber !== null ? `#${mp.player.jerseyNumber}` : ""}
+                      {mp.paymentMode
+                        ? `${mp.player.jerseyNumber !== null ? " · " : ""}paid by ${mp.paymentMode === "UPI" ? "UPI" : "cash"}`
+                        : ""}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">

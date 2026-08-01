@@ -7,12 +7,12 @@ import { idleState } from "@/app/actions/types";
 import { NewPlayerButton } from "@/components/PlayerForm";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PencilIcon } from "@/components/ui/Icons";
-import { formatMoney, round2 } from "@/lib/format";
+import { avatarLabel, formatMoney, round2 } from "@/lib/format";
 
 export type RosterRow = {
   playerId: number;
   name: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   defaultMatchFee: number;
   isPresent: boolean;
   payableAmount: number;
@@ -43,7 +43,15 @@ const num = (v: string) => {
 
 const byName = (a: RosterRow, b: RosterRow) => a.name.localeCompare(b.name);
 
-function Avatar({ jerseyNumber, active }: { jerseyNumber: number; active: boolean }) {
+function Avatar({
+  name,
+  jerseyNumber,
+  active,
+}: {
+  name: string;
+  jerseyNumber: number | null;
+  active: boolean;
+}) {
   return (
     <span
       className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold transition-colors ${
@@ -51,7 +59,7 @@ function Avatar({ jerseyNumber, active }: { jerseyNumber: number; active: boolea
       }`}
       aria-hidden
     >
-      {jerseyNumber}
+      {avatarLabel(name, jerseyNumber)}
     </span>
   );
 }
@@ -110,7 +118,7 @@ export function RosterEditor({
   function handleNewPlayer(p: {
     id: number;
     name: string;
-    jerseyNumber: number;
+    jerseyNumber: number | null;
     defaultMatchFee: number;
   }) {
     setAllRows((prev) => [
@@ -170,7 +178,10 @@ export function RosterEditor({
     ? collectionsOrder.filter((row) => drafts[row.playerId]!.present)
     : attendanceOrder;
 
-  const nextJersey = allRows.length > 0 ? Math.max(...allRows.map((r) => r.jerseyNumber)) + 1 : 1;
+  const takenJerseys = allRows
+    .map((r) => r.jerseyNumber)
+    .filter((n): n is number => n !== null);
+  const nextJersey = takenJerseys.length > 0 ? Math.max(...takenJerseys) + 1 : 1;
 
   if (!editing) {
     const present = [...rows].filter((r) => r.isPresent).sort(byName);
@@ -193,12 +204,14 @@ export function RosterEditor({
               const due = round2(row.payableAmount - row.collectedAmount);
               return (
                 <li key={row.playerId} className="list-row">
-                  <Avatar jerseyNumber={row.jerseyNumber} active />
+                  <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium">{row.name}</span>
-                    <span className="block text-[12px] text-label-secondary">
-                      #{row.jerseyNumber}
-                    </span>
+                    {row.jerseyNumber !== null ? (
+                      <span className="block text-[12px] text-label-secondary">
+                        #{row.jerseyNumber}
+                      </span>
+                    ) : null}
                   </span>
                   {due > 0 ? (
                     <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
@@ -255,7 +268,7 @@ export function RosterEditor({
                   <input type="hidden" name={`payable-${row.playerId}`} value={d.payable} />
                   <input type="hidden" name={`mode-${row.playerId}`} value={d.mode || "UPI"} />
                   <div className="flex items-center gap-2.5">
-                    <Avatar jerseyNumber={row.jerseyNumber} active />
+                    <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
                     <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
                       {row.name}
                     </span>
@@ -306,7 +319,7 @@ export function RosterEditor({
                     onChange={(e) => togglePresent(row, e.target.checked)}
                     className="h-[22px] w-[22px] shrink-0 cursor-pointer rounded-md border-black/15 text-ios-blue accent-ios-blue focus:ring-ios-blue"
                   />
-                  <Avatar jerseyNumber={row.jerseyNumber} active={d.present} />
+                  <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active={d.present} />
                   <span className="min-w-0 flex-1">
                     <span
                       className={`block truncate text-[15px] font-medium ${
@@ -315,9 +328,11 @@ export function RosterEditor({
                     >
                       {row.name}
                     </span>
-                    <span className="block text-[12px] text-label-secondary">
-                      #{row.jerseyNumber}
-                    </span>
+                    {row.jerseyNumber !== null ? (
+                      <span className="block text-[12px] text-label-secondary">
+                        #{row.jerseyNumber}
+                      </span>
+                    ) : null}
                   </span>
                 </label>
               </li>

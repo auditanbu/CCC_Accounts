@@ -212,3 +212,9 @@ export function initials(name: string): string {
     .map((w) => w[0]!.toUpperCase())
     .join("");
 }
+
+/** What to show in a player's avatar circle: their jersey number, or their
+ * initials when they don't have one on file. */
+export function avatarLabel(name: string, jerseyNumber: number | null): string {
+  return jerseyNumber !== null ? String(jerseyNumber) : initials(name);
+}

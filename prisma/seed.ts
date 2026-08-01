@@ -289,19 +289,22 @@ const MATCHES: SeedMatch[] = [
 async function main() {
   console.log("Seeding Eleven Super Kings…");
 
+  // jerseyNumber isn't a unique key any more, so re-runs match by name instead.
   for (const p of PLAYERS) {
-    await prisma.player.upsert({
-      where: { jerseyNumber: p.jerseyNumber },
-      create: { ...p, status: "ACTIVE" },
-      update: { ...p, status: "ACTIVE" },
-    });
+    const existing = await prisma.player.findFirst({ where: { name: p.name } });
+    if (existing) {
+      await prisma.player.update({ where: { id: existing.id }, data: { ...p, status: "ACTIVE" } });
+    } else {
+      await prisma.player.create({ data: { ...p, status: "ACTIVE" } });
+    }
   }
   for (const p of RETIRED) {
-    await prisma.player.upsert({
-      where: { jerseyNumber: p.jerseyNumber },
-      create: { ...p, status: "INACTIVE" },
-      update: { ...p, status: "INACTIVE" },
-    });
+    const existing = await prisma.player.findFirst({ where: { name: p.name } });
+    if (existing) {
+      await prisma.player.update({ where: { id: existing.id }, data: { ...p, status: "INACTIVE" } });
+    } else {
+      await prisma.player.create({ data: { ...p, status: "INACTIVE" } });
+    }
   }
   console.log(`  ${PLAYERS.length + RETIRED.length} players`);
 

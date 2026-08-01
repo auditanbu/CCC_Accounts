@@ -5,7 +5,7 @@ import { EmptyState, Section } from "@/components/ui/Card";
 import { Money, StatCard } from "@/components/ui/Money";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
 import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
-import { formatDate, formatMoney, formatTime } from "@/lib/format";
+import { avatarLabel, formatDate, formatMoney, formatTime } from "@/lib/format";
 import {
   getExpenseBreakdown,
   getPlayerPendings,
@@ -116,12 +116,13 @@ export default async function DashboardPage() {
               <li key={p.id}>
                 <Link href={`/players/${p.id}`} className="list-row-link">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-orange/12 text-[13px] font-semibold text-ios-orange">
-                    {p.jerseyNumber}
+                    {avatarLabel(p.name, p.jerseyNumber)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium">{p.name}</span>
                     <span className="block text-[12px] text-label-secondary">
-                      #{p.jerseyNumber} · {p.matchesPlayed} match
+                      {p.jerseyNumber !== null ? `#${p.jerseyNumber} · ` : ""}
+                      {p.matchesPlayed} match
                       {p.matchesPlayed === 1 ? "" : "es"}
                     </span>
                   </span>

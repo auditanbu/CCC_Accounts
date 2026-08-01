@@ -16,7 +16,7 @@ export type ActionState = {
     name: string;
     overs?: number;
     groundIds?: number[];
-    jerseyNumber?: number;
+    jerseyNumber?: number | null;
     defaultMatchFee?: number;
   };
 };
@@ -64,7 +64,6 @@ function isNextControlFlow(err: unknown): boolean {
 /** Turn common Prisma constraint errors into something a captain can act on. */
 function humanise(message: string): string {
   if (message.includes("Unique constraint failed")) {
-    if (message.includes("jerseyNumber")) return "That jersey number is already taken.";
     if (message.includes("name")) return "That name already exists.";
     return "That record already exists.";
   }

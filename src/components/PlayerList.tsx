@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { ChevronRightIcon } from "@/components/ui/Icons";
 import { Money } from "@/components/ui/Money";
-import { formatMoney } from "@/lib/format";
+import { avatarLabel, formatMoney } from "@/lib/format";
 import type { PlayerPending } from "@/lib/queries";
 
 type SortKey = "name" | "balance" | "jersey";
@@ -30,7 +30,7 @@ function PlayerRow({ p }: { p: PlayerPending }) {
                 : "bg-ios-orange/12 text-ios-orange"
           }`}
         >
-          {p.jerseyNumber}
+          {avatarLabel(p.name, p.jerseyNumber)}
         </span>
 
         <span className="min-w-0 flex-1">
@@ -41,7 +41,8 @@ function PlayerRow({ p }: { p: PlayerPending }) {
             ) : null}
           </span>
           <span className="block text-[12px] text-label-secondary">
-            #{p.jerseyNumber} · {p.matchesPlayed} match{p.matchesPlayed === 1 ? "" : "es"} ·{" "}
+            {p.jerseyNumber !== null ? `#${p.jerseyNumber} · ` : ""}
+            {p.matchesPlayed} match{p.matchesPlayed === 1 ? "" : "es"} ·{" "}
             {formatMoney(p.defaultMatchFee)}/match
           </span>
         </span>
@@ -89,7 +90,7 @@ export function ActiveSquadList({ players }: { players: PlayerPending[] }) {
       sort === "name"
         ? (a, b) => a.name.localeCompare(b.name)
         : sort === "jersey"
-          ? (a, b) => a.jerseyNumber - b.jerseyNumber
+          ? (a, b) => (a.jerseyNumber ?? Infinity) - (b.jerseyNumber ?? Infinity)
           : // Highest amount owed first by default, then flips to highest
             // credit first — click Balance again to toggle.
             (a, b) => (balanceDesc ? b.pending - a.pending : a.pending - b.pending);

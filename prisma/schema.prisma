@@ -45,7 +45,9 @@ enum TossDecision {
 model Player {
   id              Int           @id @default(autoincrement())
   name            String
-  jerseyNumber    Int           @unique
+  /// Optional and not unique — some players don't have one yet, and two
+  /// players occasionally share a number across seasons.
+  jerseyNumber    Int?
   mobileNumber    String?
   status          PlayerStatus  @default(ACTIVE)
   /// Standard per-match contribution for this player.

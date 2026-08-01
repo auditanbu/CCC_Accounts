@@ -86,7 +86,7 @@ export async function getTeamBalance(): Promise<number> {
 export type PlayerPending = {
   id: number;
   name: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   mobileNumber: string | null;
   status: "ACTIVE" | "INACTIVE";
   defaultMatchFee: number;
