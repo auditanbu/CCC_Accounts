@@ -37,7 +37,7 @@ export default async function NewMatchPage() {
         </Link>
         <h1 className="page-title">New match</h1>
         <p className="mt-1 text-[14px] text-label-secondary">
-          Create the fixture first — roster and accounts come next.
+          Create the fixture first — squad and accounts come next.
         </p>
       </div>
 

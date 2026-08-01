@@ -64,7 +64,7 @@ export default async function EditMatchPage({
       <div className="card-pad">
         <p className="text-[15px] font-semibold">Delete this match</p>
         <p className="mb-3 mt-1 text-[13px] text-label-secondary">
-          Removes the fixture along with its roster, collections and expenses. This can&apos;t be
+          Removes the fixture along with its squad, collections and expenses. This can&apos;t be
           undone.
         </p>
         <form action={deleteMatchAction}>

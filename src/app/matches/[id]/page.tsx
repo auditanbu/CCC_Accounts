@@ -253,14 +253,14 @@ export default async function MatchDetailPage({
         </div>
       </Section>
 
-      {/* Roster */}
-      <Section title={admin ? "Roster & collections" : `Playing XI · ${present.length}`}>
+      {/* Squad */}
+      <Section title={admin ? "Squad" : `Playing XI · ${present.length}`}>
         {admin ? (
           rosterRows.length === 0 ? (
             <EmptyState
               icon="👥"
               title="No active players"
-              description="Add players to the squad before recording a roster."
+              description="Add players to the squad first."
               action={
                 <Link href="/players" className="btn-tinted btn-sm">
                   Manage squad
@@ -278,7 +278,7 @@ export default async function MatchDetailPage({
         ) : present.length === 0 ? (
           <EmptyState
             icon="👥"
-            title="Roster not published"
+            title="Squad not published"
             description="The playing XI hasn't been recorded for this match yet."
           />
         ) : (
@@ -316,7 +316,9 @@ export default async function MatchDetailPage({
                         {formatMoney(due)} due
                       </span>
                     ) : (
-                      <span className="text-[12px] font-medium text-ios-green">Settled</span>
+                      <span className="text-[12px] font-medium text-ios-green">
+                        {mp.collectedAmount > 0 ? "Settled" : "₹0 due"}
+                      </span>
                     )}
                   </span>
                 </li>
