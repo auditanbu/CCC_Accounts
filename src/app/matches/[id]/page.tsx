@@ -87,6 +87,10 @@ export default async function MatchDetailPage({
         payableAmount: mp?.payableAmount ?? p.defaultMatchFee,
         collectedAmount: mp?.collectedAmount ?? 0,
         paymentMode: mp?.paymentMode ?? null,
+        // Best available proxy for "when this collection entry was made" —
+        // there's no dedicated paidAt field, so this is when the row was
+        // last saved.
+        collectedAt: mp?.updatedAt ? mp.updatedAt.toISOString() : null,
       };
     });
 

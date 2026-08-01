@@ -34,7 +34,7 @@ export function ExpenseSection({
             className="btn-secondary btn-sm"
           >
             <PencilIcon width={15} height={15} />
-            {editing ? "Done" : "Edit expenses"}
+            {editing ? "Done" : "Edit"}
           </button>
         </div>
       ) : null}

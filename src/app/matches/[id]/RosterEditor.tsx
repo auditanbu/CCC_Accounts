@@ -7,7 +7,7 @@ import { idleState } from "@/app/actions/types";
 import { NewPlayerButton } from "@/components/PlayerForm";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PencilIcon } from "@/components/ui/Icons";
-import { avatarLabel, formatMoney, round2 } from "@/lib/format";
+import { avatarLabel, formatDateSlash, formatMoney, round2 } from "@/lib/format";
 
 export type RosterRow = {
   playerId: number;
@@ -18,6 +18,9 @@ export type RosterRow = {
   payableAmount: number;
   collectedAmount: number;
   paymentMode: "UPI" | "CASH" | null;
+  /** When this collection entry was last saved — the closest thing on file
+   * to a "paid on" date. */
+  collectedAt: string | null;
 };
 
 type Draft = {
@@ -109,10 +112,13 @@ export function RosterEditor({
     Object.fromEntries(rows.map((r) => [r.playerId, toDraft(r)])),
   );
 
-  // There's no "Done" button on the collection step any more — Save is the
-  // only way out, so it doubles as the exit once it actually succeeds.
+  // Done (wherever it appears) and Save both submit the same form — once
+  // that submission actually succeeds, drop back to view mode.
   useEffect(() => {
-    if (state.ok) setCollectionEditing(false);
+    if (state.ok) {
+      setSquadEditing(false);
+      setCollectionEditing(false);
+    }
   }, [state]);
 
   function update(playerId: number, patch: Partial<Draft>) {
@@ -164,6 +170,7 @@ export function RosterEditor({
         payableAmount: p.defaultMatchFee,
         collectedAmount: 0,
         paymentMode: null,
+        collectedAt: null,
       },
     ]);
     // Adding them here means putting them on this match sheet — check them
@@ -246,52 +253,67 @@ export function RosterEditor({
         );
       })}
 
-      <div role="tablist" aria-label="Squad or collection" className="flex gap-1 rounded-xl bg-black/[0.05] p-1">
-        {(["squad", "collection"] as const).map((tab) => (
+      <div className="flex items-center gap-2">
+        <div
+          role="tablist"
+          aria-label="Squad or collection"
+          className="flex flex-1 gap-1 rounded-xl bg-black/[0.05] p-1"
+        >
+          {(["squad", "collection"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 rounded-[9px] py-2 text-[14px] font-semibold transition-all ${
+                activeTab === tab
+                  ? "bg-surface text-label shadow-sm"
+                  : "text-label-secondary active:opacity-60"
+              }`}
+            >
+              {tab === "squad" ? "Squad" : "Collection"}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "squad" ? (
+          squadEditing ? (
+            <SubmitButton className="btn-secondary btn-sm shrink-0" pendingLabel="Saving…">
+              Done
+            </SubmitButton>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSquadEditing(true)}
+              className="btn-secondary btn-sm shrink-0"
+            >
+              <PencilIcon width={15} height={15} />
+              Edit
+            </button>
+          )
+        ) : collectionEditing ? (
+          <SubmitButton className="btn-secondary btn-sm shrink-0" pendingLabel="Saving…">
+            Done
+          </SubmitButton>
+        ) : (
           <button
-            key={tab}
             type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 rounded-[9px] py-2 text-[14px] font-semibold transition-all ${
-              activeTab === tab
-                ? "bg-surface text-label shadow-sm"
-                : "text-label-secondary active:opacity-60"
-            }`}
+            onClick={() => setCollectionEditing(true)}
+            className="btn-secondary btn-sm shrink-0"
           >
-            {tab === "squad" ? "Squad" : "Collection"}
+            <PencilIcon width={15} height={15} />
+            Edit
           </button>
-        ))}
+        )}
       </div>
 
       {activeTab === "squad" ? (
         !squadEditing ? (
           <div className="space-y-3">
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSquadEditing(true)}
-                className="btn-secondary btn-sm"
-              >
-                <PencilIcon width={15} height={15} />
-                Edit squad
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("collection");
-                  setCollectionEditing(true);
-                }}
-                className="btn-tinted btn-sm"
-              >
-                Record collection
-              </button>
-            </div>
-
             {present.length === 0 ? (
               <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
-                No players marked yet — tap Edit squad to select the XI.
+                No players marked yet — tap Edit to select the XI.
               </p>
             ) : (
               <ul className="list-group">
@@ -314,16 +336,6 @@ export function RosterEditor({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <NewPlayerButton onCreated={handleNewPlayer} suggestedJersey={nextJersey} />
-              <button
-                type="button"
-                onClick={() => setSquadEditing(false)}
-                className="btn-secondary btn-sm"
-              >
-                Done
-              </button>
-            </div>
             <ul className="list-group">
               {attendanceOrder.map((row) => {
                 const d = drafts[row.playerId]!;
@@ -355,22 +367,14 @@ export function RosterEditor({
                   </li>
                 );
               })}
+              <li className="px-4 py-3">
+                <NewPlayerButton onCreated={handleNewPlayer} suggestedJersey={nextJersey} variant="row" />
+              </li>
             </ul>
           </div>
         )
       ) : !collectionEditing ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setCollectionEditing(true)}
-              className="btn-secondary btn-sm"
-            >
-              <PencilIcon width={15} height={15} />
-              Edit collection
-            </button>
-          </div>
-
           {present.length === 0 ? (
             <p className="rounded-xl bg-black/[0.04] px-3.5 py-2.5 text-[13px] text-label-secondary">
               No players marked yet — switch to Squad and select the XI first.
@@ -385,6 +389,7 @@ export function RosterEditor({
                     {row.paymentMode ? (
                       <span className="block text-[12px] text-label-secondary">
                         paid by {row.paymentMode === "UPI" ? "UPI" : "cash"}
+                        {row.collectedAt ? ` on ${formatDateSlash(row.collectedAt)}` : ""}
                       </span>
                     ) : null}
                   </span>

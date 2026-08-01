@@ -192,6 +192,7 @@ export function AddPlayerForm({ suggestedJersey }: { suggestedJersey?: number })
 export function NewPlayerButton({
   onCreated,
   suggestedJersey,
+  variant = "button",
 }: {
   onCreated: (player: {
     id: number;
@@ -200,6 +201,8 @@ export function NewPlayerButton({
     defaultMatchFee: number;
   }) => void;
   suggestedJersey?: number;
+  /** "row" renders as a list row (e.g. appended after the last player) instead of a pill button. */
+  variant?: "button" | "row";
 }) {
   const [state, action] = useActionState(createPlayerAction, idleState);
   const [open, setOpen] = useState(false);
@@ -220,10 +223,23 @@ export function NewPlayerButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="btn-tinted btn-sm">
-        <PlusIcon width={15} height={15} strokeWidth={2.2} />
-        Add player
-      </button>
+      {variant === "row" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-blue/10 text-ios-blue">
+            <PlusIcon width={18} height={18} strokeWidth={2.2} />
+          </span>
+          <span className="text-[15px] font-medium text-ios-blue">Add player</span>
+        </button>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="btn-tinted btn-sm">
+          <PlusIcon width={15} height={15} strokeWidth={2.2} />
+          Add player
+        </button>
+      )}
 
       {/*
         A nested <form> is invalid HTML, so this sheet is rendered by the

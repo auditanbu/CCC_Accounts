@@ -139,6 +139,12 @@ export function formatMonthYear(date: Date | string): string {
   return `${p.monthLong} ${p.year}`;
 }
 
+/** "01/08/2026" — day/month/year, for a short inline payment date. */
+export function formatDateSlash(date: Date | string): string {
+  const p = istParts(date);
+  return `${pad(p.day)}/${pad(p.month)}/${p.year}`;
+}
+
 /** Value for <input type="date">, in IST. "2026-06-16" */
 export function toDateInputValue(date: Date | string): string {
   const p = istParts(date);
