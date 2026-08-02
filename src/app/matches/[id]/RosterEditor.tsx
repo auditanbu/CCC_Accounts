@@ -7,7 +7,9 @@ import { idleState } from "@/app/actions/types";
 import { NewPlayerButton } from "@/components/PlayerForm";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PencilIcon } from "@/components/ui/Icons";
+import { TEAM_NAME } from "@/lib/constants";
 import { avatarLabel, formatDateSlash, formatMoney, round2 } from "@/lib/format";
+import { buildUpiPayLink } from "@/lib/upi";
 
 export type RosterRow = {
   playerId: number;
@@ -381,30 +383,44 @@ export function RosterEditor({
             </p>
           ) : (
             <ul className="list-group">
-              {present.map((row) => (
-                <li key={row.playerId} className="list-row">
-                  <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{row.name}</span>
-                    {row.paymentMode ? (
-                      <span className="block text-[12px] text-label-secondary">
-                        paid by {row.paymentMode === "UPI" ? "UPI" : "cash"}
-                        {row.collectedAt ? ` on ${formatDateSlash(row.collectedAt)}` : ""}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="tnum block text-[14px] font-semibold">
-                      {formatMoney(row.collectedAmount)}
-                      <span className="font-normal text-label-tertiary">
-                        {" "}
-                        / {formatMoney(row.payableAmount)}
-                      </span>
+              {present.map((row) => {
+                const due = round2(row.payableAmount - row.collectedAmount);
+                return (
+                  <li key={row.playerId} className="list-row">
+                    <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-medium">{row.name}</span>
+                      {row.paymentMode ? (
+                        <span className="block text-[12px] text-label-secondary">
+                          paid by {row.paymentMode === "UPI" ? "UPI" : "cash"}
+                          {row.collectedAt ? ` on ${formatDateSlash(row.collectedAt)}` : ""}
+                        </span>
+                      ) : null}
                     </span>
-                    <StatusBadge payable={row.payableAmount} collected={row.collectedAmount} />
-                  </span>
-                </li>
-              ))}
+                    <span className="shrink-0 text-right">
+                      <span className="tnum block text-[14px] font-semibold">
+                        {formatMoney(row.collectedAmount)}
+                        <span className="font-normal text-label-tertiary">
+                          {" "}
+                          / {formatMoney(row.payableAmount)}
+                        </span>
+                      </span>
+                      <StatusBadge payable={row.payableAmount} collected={row.collectedAmount} />
+                      {due > 0 ? (
+                        <a
+                          href={buildUpiPayLink({
+                            amount: due,
+                            note: `${TEAM_NAME} dues - ${row.name}`,
+                          })}
+                          className="mt-1 block text-[12px] font-medium text-ios-blue"
+                        >
+                          Pay via UPI
+                        </a>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
