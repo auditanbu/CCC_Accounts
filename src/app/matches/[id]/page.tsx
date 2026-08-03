@@ -10,7 +10,7 @@ import { EmptyState, Section } from "@/components/ui/Card";
 import { ChevronLeftIcon, PencilIcon } from "@/components/ui/Icons";
 import { Money } from "@/components/ui/Money";
 import { TEAM_NAME } from "@/lib/constants";
-import { avatarLabel, formatDateLong, formatMoney, formatTime } from "@/lib/format";
+import { avatarLabel, formatDateDotted, formatDateLong, formatMoney, formatTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
   getLastPlayedRosterIds,
@@ -277,6 +277,7 @@ export default async function MatchDetailPage({
               rows={rosterRows}
               lastMatchPlayerIds={lastMatchPlayerIds}
               forceEdit={edit === "1"}
+              paymentNote={`${formatDateDotted(match.date)} - ${match.ground.name}`}
             />
           )
         ) : present.length === 0 ? (

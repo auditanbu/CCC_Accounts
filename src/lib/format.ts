@@ -145,6 +145,12 @@ export function formatDateSlash(date: Date | string): string {
   return `${pad(p.day)}/${pad(p.month)}/${p.year}`;
 }
 
+/** "02.08.26" — day.month.year with a 2-digit year, for a UPI payment note. */
+export function formatDateDotted(date: Date | string): string {
+  const p = istParts(date);
+  return `${pad(p.day)}.${pad(p.month)}.${String(p.year).slice(-2)}`;
+}
+
 /** Value for <input type="date">, in IST. "2026-06-16" */
 export function toDateInputValue(date: Date | string): string {
   const p = istParts(date);

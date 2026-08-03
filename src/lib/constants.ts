@@ -1,7 +1,7 @@
 export const TEAM_NAME = "Eleven Super Kings";
 
 /** UPI ID collections get paid to — used to build "Pay via UPI" deep links. */
-export const TEAM_UPI_ID = "vrchockers-5@okhdfcbank";
+export const TEAM_UPI_ID = "vrchockers-4@okaxis";
 
 /** Expense buckets carried over from the Excel ledger. */
 export const EXPENSE_CATEGORIES = [

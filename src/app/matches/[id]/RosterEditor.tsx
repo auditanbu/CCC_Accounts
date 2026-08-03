@@ -5,11 +5,10 @@ import { Fragment, useActionState, useEffect, useMemo, useState } from "react";
 import { saveRosterAction } from "@/app/actions/matches";
 import { idleState } from "@/app/actions/types";
 import { NewPlayerButton } from "@/components/PlayerForm";
+import { UpiPayButton } from "@/components/UpiPayButton";
 import { FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PencilIcon } from "@/components/ui/Icons";
-import { TEAM_NAME } from "@/lib/constants";
 import { avatarLabel, formatDateSlash, formatMoney, round2 } from "@/lib/format";
-import { buildUpiPayLink } from "@/lib/upi";
 
 export type RosterRow = {
   playerId: number;
@@ -95,6 +94,7 @@ export function RosterEditor({
   rows,
   lastMatchPlayerIds = [],
   forceEdit = false,
+  paymentNote,
 }: {
   matchId: number;
   rows: RosterRow[];
@@ -102,6 +102,8 @@ export function RosterEditor({
   lastMatchPlayerIds?: number[];
   /** Opens straight into squad edit mode — used right after creating a new match. */
   forceEdit?: boolean;
+  /** Transaction note for "Pay via UPI" links — this match's date and ground. */
+  paymentNote: string;
 }) {
   const [state, action] = useActionState(saveRosterAction, idleState);
   const [activeTab, setActiveTab] = useState<Tab>("squad");
@@ -407,15 +409,12 @@ export function RosterEditor({
                       </span>
                       <StatusBadge payable={row.payableAmount} collected={row.collectedAmount} />
                       {due > 0 ? (
-                        <a
-                          href={buildUpiPayLink({
-                            amount: due,
-                            note: `${TEAM_NAME} dues - ${row.name}`,
-                          })}
+                        <UpiPayButton
+                          note={paymentNote}
                           className="mt-1 block text-[12px] font-medium text-ios-blue"
                         >
                           Pay via UPI
-                        </a>
+                        </UpiPayButton>
                       ) : null}
                     </span>
                   </li>

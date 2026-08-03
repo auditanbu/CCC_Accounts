@@ -4,16 +4,15 @@ import { notFound } from "next/navigation";
 
 import { deletePlayerAction, togglePlayerStatusAction } from "@/app/actions/players";
 import { EditPlayerForm } from "@/components/PlayerForm";
+import { UpiPayButton } from "@/components/UpiPayButton";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { ConfirmSubmit, SubmitButton } from "@/components/ui/Form";
-import { ChevronLeftIcon, TrashIcon, WalletIcon } from "@/components/ui/Icons";
+import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { Money, StatCard } from "@/components/ui/Money";
-import { TEAM_NAME } from "@/lib/constants";
 import { avatarLabel, formatDate, formatMoney } from "@/lib/format";
 import { getPlayerLedger } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { buildUpiPayLink } from "@/lib/upi";
 
 export const dynamic = "force-dynamic";
 
@@ -157,16 +156,7 @@ export default async function PlayerDetailPage({
 
         {pending > 0 ? (
           <div className="border-t border-separator/70 px-4 py-3.5">
-            <a
-              href={buildUpiPayLink({
-                amount: pending,
-                note: `${TEAM_NAME} dues - ${player.name}`,
-              })}
-              className="btn-primary btn-sm w-full sm:w-auto"
-            >
-              <WalletIcon width={16} height={16} />
-              Pay via UPI
-            </a>
+            <UpiPayButton note="ESK - team amount" />
           </div>
         ) : null}
       </div>
