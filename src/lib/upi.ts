@@ -12,6 +12,14 @@ export const UPI_APPS: { id: UpiAppId; name: string; scheme: string }[] = [
   { id: "bhim", name: "BHIM", scheme: "upi://pay" },
 ];
 
+/** A short unique reference per link — NPCI's `tr` field. Not strictly
+ * mandatory, but its absence is one more way an intent-triggered payment
+ * reads as less "complete" than a manually-typed transfer to the same
+ * backend checks. */
+function transactionRef(): string {
+  return `ESK${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+
 /**
  * An app-specific UPI deep link — Google Pay's `tez://` or PhonePe's own
  * scheme opens that exact app's confirm-payment screen directly, no OS
@@ -26,6 +34,14 @@ export const UPI_APPS: { id: UpiAppId; name: string; scheme: string }[] = [
  * by the backend with a misleading "exceeded bank limit" error (seen on a
  * ₹5 test, which no bank would genuinely cap). `am` is spec'd too and, when
  * known, saves the payer from having to type the exact amount themselves.
+ *
+ * Even with those fixed, the same VPA can still fail this way through an
+ * intent link while a manually-typed transfer to it succeeds — UPI apps and
+ * banks commonly apply stricter checks to externally-triggered ("intent")
+ * payments than to ones typed inside their own UI, especially to a personal
+ * (non-merchant) VPA. `tr` narrows that gap but can't fully close it; if it
+ * still fails, that's a bank/NPCI-side restriction on intent payments to
+ * this account, not something a link's parameters can override.
  */
 export function buildUpiAppLink(app: UpiAppId, note: string, amount?: number): string {
   const scheme = UPI_APPS.find((a) => a.id === app)!.scheme;
@@ -33,6 +49,7 @@ export function buildUpiAppLink(app: UpiAppId, note: string, amount?: number): s
     ["pa", TEAM_UPI_ID],
     ["pn", TEAM_NAME],
     ["cu", "INR"],
+    ["tr", transactionRef()],
   ];
   if (amount !== undefined) entries.push(["am", amount.toFixed(2)]);
   entries.push(["tn", note]);
