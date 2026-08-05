@@ -20,15 +20,21 @@ export const UPI_APPS: { id: UpiAppId; name: string; scheme: string }[] = [
  * answers to upi://. Either way there's no callback to this app, so a
  * payment has to be marked collected manually afterwards. If the picked
  * app isn't installed, the tap silently does nothing.
+ *
+ * `cu=INR` is mandatory per NPCI's UPI linking spec — leaving it out let the
+ * app render the confirm screen fine, but the actual payment got rejected
+ * by the backend with a misleading "exceeded bank limit" error (seen on a
+ * ₹5 test, which no bank would genuinely cap). `am` is spec'd too and, when
+ * known, saves the payer from having to type the exact amount themselves.
  */
-export function buildUpiAppLink(app: UpiAppId, note: string): string {
+export function buildUpiAppLink(app: UpiAppId, note: string, amount?: number): string {
   const scheme = UPI_APPS.find((a) => a.id === app)!.scheme;
-  const params = [
+  const entries: [string, string][] = [
     ["pa", TEAM_UPI_ID],
     ["pn", TEAM_NAME],
-    ["tn", note],
-  ]
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join("&");
-  return `${scheme}?${params}`;
+    ["cu", "INR"],
+  ];
+  if (amount !== undefined) entries.push(["am", amount.toFixed(2)]);
+  entries.push(["tn", note]);
+  return `${scheme}?${entries.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&")}`;
 }

@@ -21,11 +21,14 @@ const APP_BADGE: Record<UpiAppId, { bg: string; fg: string; letter: string }> = 
  * each going straight to that app's own confirm-payment screen. */
 export function UpiPayButton({
   note,
+  amount,
   className = "btn-primary btn-sm w-full sm:w-auto",
   children,
 }: {
   /** Transaction note shown to the payer — varies by where this is used. */
   note: string;
+  /** Pre-fills the amount when known, so the payer doesn't have to type it. */
+  amount?: number;
   className?: string;
   children?: ReactNode;
 }) {
@@ -49,7 +52,7 @@ export function UpiPayButton({
             return (
               <li key={app.id}>
                 <a
-                  href={buildUpiAppLink(app.id, note)}
+                  href={buildUpiAppLink(app.id, note, amount)}
                   onClick={() => setOpen(false)}
                   className="list-row-link"
                 >

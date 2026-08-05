@@ -411,6 +411,7 @@ export function RosterEditor({
                       {due > 0 ? (
                         <UpiPayButton
                           note={paymentNote}
+                          amount={due}
                           className="mt-1 block text-[12px] font-medium text-ios-blue"
                         >
                           Pay via UPI

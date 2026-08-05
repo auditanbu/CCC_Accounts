@@ -156,7 +156,7 @@ export default async function PlayerDetailPage({
 
         {pending > 0 ? (
           <div className="border-t border-separator/70 px-4 py-3.5">
-            <UpiPayButton note="ESK - team amount" />
+            <UpiPayButton note="ESK - team amount" amount={pending} />
           </div>
         ) : null}
       </div>
