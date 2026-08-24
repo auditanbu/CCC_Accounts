@@ -139,6 +139,18 @@ export function formatMonthYear(date: Date | string): string {
   return `${p.monthLong} ${p.year}`;
 }
 
+/** "01/08/2026" — day/month/year, for a short inline payment date. */
+export function formatDateSlash(date: Date | string): string {
+  const p = istParts(date);
+  return `${pad(p.day)}/${pad(p.month)}/${p.year}`;
+}
+
+/** "02.08.26" — day.month.year with a 2-digit year, for a UPI payment note. */
+export function formatDateDotted(date: Date | string): string {
+  const p = istParts(date);
+  return `${pad(p.day)}.${pad(p.month)}.${String(p.year).slice(-2)}`;
+}
+
 /** Value for <input type="date">, in IST. "2026-06-16" */
 export function toDateInputValue(date: Date | string): string {
   const p = istParts(date);
@@ -159,16 +171,24 @@ export function isSundayValue(value: string): boolean {
 }
 
 /**
- * The next `count` Sundays as "YYYY-MM-DD" values, in IST. Today is the first
- * one when today is already a Sunday.
+ * `past` completed Sundays before today, then today's Sunday if today is one,
+ * then `future` Sundays ahead — chronological, oldest first, as "YYYY-MM-DD"
+ * values in IST. Covers logging a fixture already played as readily as one
+ * still to come.
  *
  * The arithmetic runs on UTC components of an IST calendar day, so it never
  * crosses a day boundary the way local-time arithmetic on the server would.
  */
-export function upcomingSundays(count: number, from: Date | string = new Date()): string[] {
+export function surroundingSundays(
+  past: number,
+  future: number,
+  from: Date | string = new Date(),
+): string[] {
   const p = istParts(from);
-  const firstMs = Date.UTC(p.year, p.month - 1, p.day) + ((7 - p.weekday) % 7) * DAY_MS;
-  return Array.from({ length: count }, (_, i) => {
+  // Today if today is a Sunday, else the next one ahead.
+  const nextMs = Date.UTC(p.year, p.month - 1, p.day) + ((7 - p.weekday) % 7) * DAY_MS;
+  const firstMs = nextMs - past * 7 * DAY_MS;
+  return Array.from({ length: past + future + 1 }, (_, i) => {
     const d = new Date(firstMs + i * 7 * DAY_MS);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   });
@@ -203,4 +223,10 @@ export function initials(name: string): string {
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
+}
+
+/** What to show in a player's avatar circle: their jersey number, or their
+ * initials when they don't have one on file. */
+export function avatarLabel(name: string, jerseyNumber: number | null): string {
+  return jerseyNumber !== null ? String(jerseyNumber) : initials(name);
 }

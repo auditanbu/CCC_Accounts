@@ -6,13 +6,14 @@ import { createPlayerAction, updatePlayerAction } from "@/app/actions/players";
 import { idleState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PlusIcon } from "@/components/ui/Icons";
+import { Sheet } from "@/components/ui/Sheet";
 import { MATCH_FEE_OPTIONS } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 
 export type PlayerValues = {
   id: number;
   name: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   mobileNumber: string | null;
   status: "ACTIVE" | "INACTIVE";
   defaultMatchFee: number;
@@ -28,8 +29,9 @@ function Fields({
   fieldErrors: Record<string, string>;
   suggestedJersey?: number;
 }) {
-  const [fee, setFee] = useState<number>(initial?.defaultMatchFee ?? MATCH_FEE_OPTIONS[0]);
-  const isCustomFee = !(MATCH_FEE_OPTIONS as readonly number[]).includes(fee);
+  // A string, not a number — so the amount field can be typed into freely
+  // (cleared, mid-edit, etc.) without fighting a numeric state value.
+  const [fee, setFee] = useState<string>(String(initial?.defaultMatchFee ?? MATCH_FEE_OPTIONS[0]));
 
   return (
     <>
@@ -47,13 +49,17 @@ function Fields({
           />
         </Field>
 
-        <Field label="Jersey number" htmlFor="jerseyNumber" error={fieldErrors.jerseyNumber}>
+        <Field
+          label="Jersey number"
+          htmlFor="jerseyNumber"
+          error={fieldErrors.jerseyNumber}
+          hint="Optional — doesn't need to be unique."
+        >
           <input
             id="jerseyNumber"
             name="jerseyNumber"
             type="number"
             inputMode="numeric"
-            required
             min={0}
             max={999}
             placeholder="7"
@@ -89,30 +95,35 @@ function Fields({
       </div>
 
       <div>
-        <span className="label">Default match fee</span>
+        <span className="label">Default match fee ₹</span>
         <div className="flex gap-1 rounded-xl bg-black/[0.05] p-1">
           {MATCH_FEE_OPTIONS.map((option) => (
             <button
               key={option}
               type="button"
-              onClick={() => setFee(option)}
-              aria-pressed={fee === option}
+              onClick={() => setFee(String(option))}
+              aria-pressed={Number(fee) === option}
               className={`flex-1 rounded-[9px] py-2 text-[14px] font-semibold transition-all ${
-                fee === option
-                  ? "bg-white text-label shadow-sm"
+                Number(fee) === option
+                  ? "bg-surface text-label shadow-sm"
                   : "text-label-secondary active:opacity-60"
               }`}
             >
               {formatMoney(option)}
             </button>
           ))}
-          {isCustomFee ? (
-            <span className="flex-1 rounded-[9px] bg-white py-2 text-center text-[14px] font-semibold shadow-sm">
-              {formatMoney(fee)}
-            </span>
-          ) : null}
         </div>
-        <input type="hidden" name="defaultMatchFee" value={fee} />
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="1"
+          placeholder="Or enter a custom amount"
+          value={fee}
+          onChange={(e) => setFee(e.target.value)}
+          name="defaultMatchFee"
+          className="input mt-2"
+        />
         <p className="mt-1.5 text-[12px] text-label-secondary">
           Filled in automatically when this player is picked for a match.
         </p>
@@ -170,6 +181,78 @@ export function AddPlayerForm({ suggestedJersey }: { suggestedJersey?: number })
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Creates a player from inside another form — the roster editor, where
+ * needing one is discovered mid-flow. Reports the new record back so the
+ * caller can drop them straight onto the match sheet.
+ */
+export function NewPlayerButton({
+  onCreated,
+  suggestedJersey,
+  variant = "button",
+}: {
+  onCreated: (player: {
+    id: number;
+    name: string;
+    jerseyNumber: number | null;
+    defaultMatchFee: number;
+  }) => void;
+  suggestedJersey?: number;
+  /** "row" renders as a list row (e.g. appended after the last player) instead of a pill button. */
+  variant?: "button" | "row";
+}) {
+  const [state, action] = useActionState(createPlayerAction, idleState);
+  const [open, setOpen] = useState(false);
+  const handled = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (state.ok && state.created && handled.current !== state.created.id) {
+      handled.current = state.created.id;
+      onCreated({
+        id: state.created.id,
+        name: state.created.name,
+        jerseyNumber: state.created.jerseyNumber ?? null,
+        defaultMatchFee: state.created.defaultMatchFee ?? 0,
+      });
+      setOpen(false);
+    }
+  }, [state, onCreated]);
+
+  return (
+    <>
+      {variant === "row" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-blue/10 text-ios-blue">
+            <PlusIcon width={18} height={18} strokeWidth={2.2} />
+          </span>
+          <span className="text-[15px] font-medium text-ios-blue">Add player</span>
+        </button>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="btn-tinted btn-sm">
+          <PlusIcon width={15} height={15} strokeWidth={2.2} />
+          Add player
+        </button>
+      )}
+
+      {/*
+        A nested <form> is invalid HTML, so this sheet is rendered by the
+        caller outside its own form element — see RosterEditor.
+      */}
+      <Sheet open={open} onClose={() => setOpen(false)} title="New player">
+        <form action={action} className="card-pad space-y-4">
+          <Fields fieldErrors={state.fieldErrors ?? {}} suggestedJersey={suggestedJersey} />
+          <FormMessage state={state} />
+          <SubmitButton className="btn-primary w-full">Add to squad</SubmitButton>
+        </form>
+      </Sheet>
+    </>
   );
 }
 

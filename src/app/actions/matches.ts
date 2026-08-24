@@ -44,6 +44,40 @@ const matchSchema = z
       .optional()
       .transform((v) => (v ? Number(v) : null))
       .refine((v) => v === null || Number.isInteger(v), "Pick a valid tournament."),
+    tossWonBy: z
+      .enum(["", "US", "OPPONENT"])
+      .optional()
+      .transform((v) => (v ? v : null)),
+    tossDecision: z
+      .enum(["", "BAT", "BOWL"])
+      .optional()
+      .transform((v) => (v ? v : null)),
+    result: z
+      .enum(["", "WIN", "LOSS", "TIE", "NO_RESULT"])
+      .optional()
+      .transform((v) => (v ? v : null)),
+    ourScore: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((v) => (v ? v : null)),
+    opponentScore: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((v) => (v ? v : null)),
+    cricheroesUrl: z
+      .string()
+      .trim()
+      .max(300)
+      .optional()
+      .transform((v) => (v ? v : null))
+      .refine(
+        (v) => v === null || v.startsWith("http://") || v.startsWith("https://"),
+        "That doesn't look like a link.",
+      ),
     notes: z
       .string()
       .trim()
@@ -64,6 +98,8 @@ const matchSchema = z
     // still had stale values selected when the type was switched.
     tournamentId: v.matchType === "TOURNAMENT" ? v.tournamentId : null,
     matchNumber: v.matchType === "TOURNAMENT" ? v.matchNumber : null,
+    // A decision means nothing without a toss winner to have made it.
+    tossDecision: v.tossWonBy === null ? null : v.tossDecision,
   }));
 
 /**
@@ -90,6 +126,12 @@ function parseMatch(formData: FormData) {
     opponentTeam: formData.get("opponentTeam") ?? "",
     groundId: formData.get("groundId") ?? "",
     tournamentId: formData.get("tournamentId") ?? "",
+    tossWonBy: formData.get("tossWonBy") ?? "",
+    tossDecision: formData.get("tossDecision") ?? "",
+    result: formData.get("result") ?? "",
+    ourScore: formData.get("ourScore") ?? "",
+    opponentScore: formData.get("opponentScore") ?? "",
+    cricheroesUrl: formData.get("cricheroesUrl") ?? "",
     notes: formData.get("notes") ?? "",
   });
 }
@@ -97,7 +139,6 @@ function parseMatch(formData: FormData) {
 function revalidateMatch(id?: number) {
   revalidatePath("/");
   revalidatePath("/matches");
-  revalidatePath("/schedule");
   revalidatePath("/players");
   revalidatePath("/tournaments");
   if (id) revalidatePath(`/matches/${id}`);
@@ -118,7 +159,8 @@ export async function createMatchAction(
     return { ok: true, message: "Match created." };
   });
 
-  if (state.ok && newId !== null) redirect(`/matches/${newId}`);
+  // Straight into picking the XI — creating a fixture is rarely the end goal.
+  if (state.ok && newId !== null) redirect(`/matches/${newId}?edit=1`);
   return state;
 }
 

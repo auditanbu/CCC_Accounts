@@ -5,10 +5,10 @@ import { EmptyState, Section } from "@/components/ui/Card";
 import { Money, StatCard } from "@/components/ui/Money";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
 import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
-import { formatDate, formatMoney, formatTime } from "@/lib/format";
+import { avatarLabel, formatDate, formatMoney, formatTime } from "@/lib/format";
 import {
   getExpenseBreakdown,
-  getOutstandingPlayers,
+  getPlayerPendings,
   getRecentMatches,
   getTeamSummary,
   getTournamentOutstandings,
@@ -19,16 +19,21 @@ import { isAdmin } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [summary, recent, upcoming, outstanding, breakdown, tournaments, admin] =
+  const [summary, recent, upcoming, players, breakdown, tournaments, admin] =
     await Promise.all([
       getTeamSummary(),
       getRecentMatches(3),
       getUpcomingMatches(3),
-      getOutstandingPlayers(),
+      getPlayerPendings(),
       getExpenseBreakdown(),
       getTournamentOutstandings(),
       isAdmin(),
     ]);
+
+  const outstanding = players.filter((p) => p.pending > 0).sort((a, b) => b.pending - a.pending);
+  const totalPending = players.reduce((s, p) => s + Math.max(p.pending, 0), 0);
+  // The flip side of pending — players who've paid in more than they owe.
+  const totalExcess = players.reduce((s, p) => s + Math.max(-p.pending, 0), 0);
 
   const topExpenses = breakdown.slice(0, 5);
   const maxExpense = topExpenses[0]?.amount ?? 0;
@@ -64,16 +69,17 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Pending"
-          value={summary.totalPending}
-          tone={summary.totalPending > 0 ? "negative" : "plain"}
+          value={totalPending}
+          tone={totalPending > 0 ? "negative" : "plain"}
           accent="bg-ios-orange"
           caption={`${outstanding.length} player${outstanding.length === 1 ? "" : "s"} owe`}
         />
         <StatCard
-          label="Squad"
-          value={String(summary.activePlayers)}
-          accent="bg-ios-blue"
-          caption="Active players"
+          label="Excess"
+          value={totalExcess}
+          tone={totalExcess > 0 ? "positive" : "plain"}
+          accent="bg-ios-green"
+          caption="Paid in over what's owed"
         />
       </div>
 
@@ -82,9 +88,6 @@ export default async function DashboardPage() {
           <Link href="/matches/new" className="btn-primary">
             <PlusIcon width={18} height={18} strokeWidth={2.2} />
             New match
-          </Link>
-          <Link href="/players" className="btn-secondary">
-            Manage squad
           </Link>
           <Link href="/grounds" className="btn-secondary">
             Grounds
@@ -113,12 +116,13 @@ export default async function DashboardPage() {
               <li key={p.id}>
                 <Link href={`/players/${p.id}`} className="list-row-link">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ios-orange/12 text-[13px] font-semibold text-ios-orange">
-                    {p.jerseyNumber}
+                    {avatarLabel(p.name, p.jerseyNumber)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-medium">{p.name}</span>
                     <span className="block text-[12px] text-label-secondary">
-                      #{p.jerseyNumber} · {p.matchesPlayed} match
+                      {p.jerseyNumber !== null ? `#${p.jerseyNumber} · ` : ""}
+                      {p.matchesPlayed} match
                       {p.matchesPlayed === 1 ? "" : "es"}
                     </span>
                   </span>
@@ -144,7 +148,7 @@ export default async function DashboardPage() {
       <Section
         title="Upcoming"
         action={
-          <Link href="/schedule" className="text-[14px] font-medium text-ios-blue">
+          <Link href="/matches" className="text-[14px] font-medium text-ios-blue">
             Schedule
           </Link>
         }

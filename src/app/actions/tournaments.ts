@@ -59,7 +59,9 @@ export async function createTournamentAction(
     return {
       ok: true,
       message: `${data.name} added.`,
-      created: { id: created.id, name: created.name, overs: created.overs },
+      // Grounds travel with it so the match form can narrow its venue list
+      // straight away, without re-reading the tournament.
+      created: { id: created.id, name: created.name, overs: created.overs, groundIds },
     };
   });
 }

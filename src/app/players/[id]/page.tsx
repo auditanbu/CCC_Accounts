@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 
 import { deletePlayerAction, togglePlayerStatusAction } from "@/app/actions/players";
 import { EditPlayerForm } from "@/components/PlayerForm";
+import { UpiPayButton } from "@/components/UpiPayButton";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { ConfirmSubmit, SubmitButton } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { Money, StatCard } from "@/components/ui/Money";
-import { formatDate, formatMoney, initials } from "@/lib/format";
+import { avatarLabel, formatDate, formatMoney } from "@/lib/format";
 import { getPlayerLedger } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -63,12 +64,13 @@ export default async function PlayerDetailPage({
                 : "bg-black/[0.05] text-label-tertiary"
             }`}
           >
-            {initials(player.name)}
+            {avatarLabel(player.name, player.jerseyNumber)}
           </span>
           <div className="min-w-0">
             <h1 className="page-title truncate">{player.name}</h1>
             <p className="mt-0.5 text-[14px] text-label-secondary">
-              Jersey #{player.jerseyNumber} · {formatMoney(player.defaultMatchFee)} per match
+              {player.jerseyNumber !== null ? `Jersey #${player.jerseyNumber} · ` : ""}
+              {formatMoney(player.defaultMatchFee)} per match
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span
@@ -113,7 +115,7 @@ export default async function PlayerDetailPage({
             </p>
           </div>
         </div>
-        {openingBalance !== 0 ? (
+        {admin && openingBalance !== 0 ? (
           <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
@@ -139,7 +141,7 @@ export default async function PlayerDetailPage({
               {pending < 0 ? "Credit balance" : "Outstanding"}
             </p>
             <p className="mt-0.5 text-[12px] text-label-secondary">
-              {openingBalance !== 0 ? "Opening + payable − paid" : "Payable − paid"} across{" "}
+              {admin && openingBalance !== 0 ? "Opening + payable − paid" : "Payable − paid"} across{" "}
               {matchesPlayed} match{matchesPlayed === 1 ? "" : "es"}
             </p>
           </div>
@@ -151,6 +153,12 @@ export default async function PlayerDetailPage({
             )}
           </p>
         </div>
+
+        {pending > 0 ? (
+          <div className="border-t border-separator/70 px-4 py-3.5">
+            <UpiPayButton note="ESK - team amount" amount={pending} />
+          </div>
+        ) : null}
       </div>
 
       <Section title={`Match history · ${appearances.length}`}>

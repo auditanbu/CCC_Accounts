@@ -7,6 +7,7 @@ import { ConfirmSubmit } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { deleteMatchAction, updateMatchAction } from "@/app/actions/matches";
 import { prisma } from "@/lib/prisma";
+import { getDistinctOpponentNames } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +24,15 @@ export default async function EditMatchPage({
 
   if (!(await isAdmin())) redirect(`/login?next=/matches/${matchId}/edit`);
 
-  const [match, grounds, tournaments] = await Promise.all([
+  const [match, grounds, tournaments, opponentSuggestions] = await Promise.all([
     prisma.match.findUnique({ where: { id: matchId } }),
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
-    prisma.tournament.findMany({ orderBy: { name: "asc" } }),
+    prisma.tournament.findMany({
+      orderBy: { name: "asc" },
+      // The form narrows its ground list to the venues of the chosen tournament.
+      include: { grounds: { select: { id: true } } },
+    }),
+    getDistinctOpponentNames(),
   ]);
   if (!match) notFound();
 
@@ -46,7 +52,11 @@ export default async function EditMatchPage({
       <MatchForm
         action={updateMatchAction}
         grounds={grounds}
-        tournaments={tournaments}
+        tournaments={tournaments.map((t) => ({
+          ...t,
+          groundIds: t.grounds.map((g) => g.id),
+        }))}
+        opponentSuggestions={opponentSuggestions}
         initial={match}
         submitLabel="Save changes"
       />
@@ -54,7 +64,7 @@ export default async function EditMatchPage({
       <div className="card-pad">
         <p className="text-[15px] font-semibold">Delete this match</p>
         <p className="mb-3 mt-1 text-[13px] text-label-secondary">
-          Removes the fixture along with its roster, collections and expenses. This can&apos;t be
+          Removes the fixture along with its squad, collections and expenses. This can&apos;t be
           undone.
         </p>
         <form action={deleteMatchAction}>

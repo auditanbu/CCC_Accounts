@@ -25,10 +25,29 @@ enum PaymentMode {
   CASH
 }
 
+enum MatchResult {
+  WIN
+  LOSS
+  TIE
+  NO_RESULT
+}
+
+enum TossWinner {
+  US
+  OPPONENT
+}
+
+enum TossDecision {
+  BAT
+  BOWL
+}
+
 model Player {
   id              Int           @id @default(autoincrement())
   name            String
-  jerseyNumber    Int           @unique
+  /// Optional and not unique — some players don't have one yet, and two
+  /// players occasionally share a number across seasons.
+  jerseyNumber    Int?
   mobileNumber    String?
   status          PlayerStatus  @default(ACTIVE)
   /// Standard per-match contribution for this player.
@@ -46,16 +65,16 @@ model Player {
 }
 
 model Ground {
-  id           Int      @id @default(autoincrement())
-  name         String   @unique
+  id           Int          @id @default(autoincrement())
+  name         String       @unique
   /// Google Maps link for directions.
   googleMapUrl String?
   /// Area or town, e.g. "Nandanam, Chennai".
   location     String?
   tournaments  Tournament[] @relation("TournamentGrounds")
   matches      Match[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model Tournament {
@@ -76,40 +95,49 @@ model Tournament {
 }
 
 model Match {
-  id           Int            @id @default(autoincrement())
-  date         DateTime
-  matchType    MatchType      @default(PRACTICE)
+  id            Int            @id @default(autoincrement())
+  date          DateTime
+  matchType     MatchType      @default(PRACTICE)
   /// Fixture number within a tournament (null for practice matches).
-  matchNumber  Int?
-  overs        Int            @default(20)
-  opponentTeam String
-  groundId     Int
-  ground       Ground         @relation(fields: [groundId], references: [id])
-  tournamentId Int?
-  tournament   Tournament?    @relation(fields: [tournamentId], references: [id])
-  notes        String?
-  players      MatchPlayer[]
-  expenses     MatchExpense[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  matchNumber   Int?
+  overs         Int            @default(20)
+  opponentTeam  String
+  groundId      Int
+  ground        Ground         @relation(fields: [groundId], references: [id])
+  tournamentId  Int?
+  tournament    Tournament?    @relation(fields: [tournamentId], references: [id])
+  /// Filled in once the match has been played.
+  tossWonBy     TossWinner?
+  tossDecision  TossDecision?
+  result        MatchResult?
+  /// Free text, e.g. "156/7 (20)" — a scorecard, not a decomposed run/wicket count.
+  ourScore      String?
+  opponentScore String?
+  /// Full scorecard on Cricheroes, for anyone who wants the ball-by-ball detail.
+  cricheroesUrl String?
+  notes         String?
+  players       MatchPlayer[]
+  expenses      MatchExpense[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([date])
   @@index([tournamentId])
 }
 
 model MatchPlayer {
-  id               Int          @id @default(autoincrement())
-  matchId          Int
-  match            Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  playerId         Int
-  player           Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id              Int          @id @default(autoincrement())
+  matchId         Int
+  match           Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId        Int
+  player          Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
   /// What this player owes for this match — their default fee when present, 0 when absent.
-  payableAmount    Float        @default(0)
-  collectedAmount  Float        @default(0)
-  paymentMode      PaymentMode?
-  isPresent        Boolean      @default(false)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  payableAmount   Float        @default(0)
+  collectedAmount Float        @default(0)
+  paymentMode     PaymentMode?
+  isPresent       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@unique([matchId, playerId])
   @@index([playerId])

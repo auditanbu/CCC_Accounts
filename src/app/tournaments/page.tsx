@@ -156,14 +156,15 @@ export default async function TournamentsPage() {
       </div>
 
       {tournaments.length > 0 ? (
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Total fees" value={totalFees} accent="bg-ios-indigo" />
-          <StatCard label="Paid" value={totalPaid} accent="bg-ios-green" />
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard label="Total fees" value={totalFees} accent="bg-ios-indigo" size="compact" />
+          <StatCard label="Paid" value={totalPaid} accent="bg-ios-green" size="compact" />
           <StatCard
             label="Outstanding"
             value={totalOutstanding}
             tone={totalOutstanding > 0 ? "negative" : "plain"}
             accent="bg-ios-orange"
+            size="compact"
           />
         </div>
       ) : null}

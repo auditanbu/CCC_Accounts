@@ -1,16 +1,83 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { MatchCard } from "@/components/MatchCard";
+import { MatchTypeBadge, ResultBadge } from "@/components/MatchCard";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
-import { PlusIcon } from "@/components/ui/Icons";
-import { getMatchesSplit, getTeamSummary } from "@/lib/queries";
+import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
+import { formatMonthYear, formatTime, istParts, relativeDay } from "@/lib/format";
+import { getMatchesSplit } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Matches" };
+
+type Row = Awaited<ReturnType<typeof getMatchesSplit>>["played"][number];
+
+/** Groups matches under a "Month Year" heading, like the iOS Calendar list view. */
+function groupByMonth(matches: Row[]): { key: string; label: string; items: Row[] }[] {
+  const groups = new Map<string, { label: string; items: Row[] }>();
+  for (const m of matches) {
+    const label = formatMonthYear(m.date);
+    const existing = groups.get(label);
+    if (existing) existing.items.push(m);
+    else groups.set(label, { label, items: [m] });
+  }
+  return [...groups.entries()].map(([key, v]) => ({ key, ...v }));
+}
+
+function MatchRow({ match, showMoney }: { match: Row; showMoney: boolean }) {
+  const p = istParts(match.date);
+  const dateParts = { weekday: p.weekdayShort, day: String(p.day).padStart(2, "0") };
+
+  return (
+    <li>
+      <Link href={`/matches/${match.id}`} className="list-row-link">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-black/[0.04]">
+          <span className="text-center leading-none">
+            <span className="block text-[9px] font-bold uppercase tracking-wide text-label-secondary">
+              {dateParts.weekday}
+            </span>
+            <span className="mt-0.5 block text-[17px] font-bold">{dateParts.day}</span>
+          </span>
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[15px] font-semibold">vs {match.opponentTeam}</span>
+          </span>
+          <span className="mt-0.5 block truncate text-[12px] text-label-secondary">
+            {formatTime(match.date)} · 🏟 {match.ground.name} · {match.overs} ov
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-1.5">
+            <MatchTypeBadge type={match.matchType} />
+            {match.result ? <ResultBadge result={match.result} /> : null}
+            {match.tournament ? (
+              <span className="badge bg-black/[0.05] text-label-secondary">
+                {match.tournament.name}
+                {match.matchNumber ? ` · M${match.matchNumber}` : ""}
+              </span>
+            ) : null}
+          </span>
+        </span>
+
+        <span className="shrink-0 text-right">
+          {showMoney ? (
+            <span className="block text-[14px] font-semibold">
+              <Money value={match.totals.net} tone="ledger" />
+            </span>
+          ) : (
+            <span className="block text-[12px] text-label-secondary">
+              {relativeDay(match.date)}
+            </span>
+          )}
+        </span>
+        <ChevronRightIcon className="shrink-0 text-label-tertiary" />
+      </Link>
+    </li>
+  );
+}
 
 export default async function MatchesPage({
   searchParams,
@@ -30,9 +97,8 @@ export default async function MatchesPage({
   // Ignore an unrecognised id rather than silently filtering to zero matches.
   const tournamentId = tournament ? tournament.id : undefined;
 
-  const [{ played, upcoming }, summary, admin] = await Promise.all([
+  const [{ played, upcoming }, admin] = await Promise.all([
     getMatchesSplit(tournamentId),
-    getTeamSummary(),
     isAdmin(),
   ]);
 
@@ -64,44 +130,43 @@ export default async function MatchesPage({
         </div>
       ) : null}
 
-      <div className="card grid grid-cols-3 divide-x divide-separator/70">
-        <div className="px-3 py-3.5 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
-            Collected
-          </p>
-          <p className="mt-1 text-[17px] font-bold">
-            <Money value={summary.totalCollected} />
-          </p>
-        </div>
-        <div className="px-3 py-3.5 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
-            Expenses
-          </p>
-          <p className="mt-1 text-[17px] font-bold">
-            <Money value={summary.totalExpenses} />
-          </p>
-        </div>
-        <div className="px-3 py-3.5 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
-            Balance
-          </p>
-          <p className="mt-1 text-[17px] font-bold">
-            <Money value={summary.teamBalance} tone="ledger" />
-          </p>
-        </div>
-      </div>
-
-      {upcoming.length > 0 ? (
-        <Section title={`Upcoming schedules · ${upcoming.length}`}>
-          <div className="space-y-3">
-            {upcoming.map((m) => (
-              <MatchCard key={m.id} match={m} />
+      <Section title={`Upcoming · ${upcoming.length}`}>
+        {upcoming.length === 0 ? (
+          <EmptyState
+            icon="📅"
+            title="Nothing scheduled"
+            description={
+              tournament
+                ? `No upcoming matches scheduled for ${tournament.name}.`
+                : "Schedule a match ahead of time — accounts can be filled in after it's played."
+            }
+            action={
+              admin && !tournament ? (
+                <Link href="/matches/new" className="btn-tinted btn-sm">
+                  Schedule a match
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
+          <div className="space-y-4">
+            {groupByMonth(upcoming).map((group) => (
+              <div key={group.key} className="space-y-2">
+                <p className="px-1 text-[12px] font-semibold uppercase tracking-wide text-label-tertiary">
+                  {group.label}
+                </p>
+                <ul className="list-group">
+                  {group.items.map((m) => (
+                    <MatchRow key={m.id} match={m} showMoney={false} />
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
-        </Section>
-      ) : null}
+        )}
+      </Section>
 
-      <Section title={`Played matches · ${played.length}`}>
+      <Section title={`Played · ${played.length}`}>
         {played.length === 0 ? (
           <EmptyState
             icon="🏏"
@@ -120,9 +185,18 @@ export default async function MatchesPage({
             }
           />
         ) : (
-          <div className="space-y-3">
-            {played.map((m) => (
-              <MatchCard key={m.id} match={m} />
+          <div className="space-y-4">
+            {groupByMonth(played).map((group) => (
+              <div key={group.key} className="space-y-2">
+                <p className="px-1 text-[12px] font-semibold uppercase tracking-wide text-label-tertiary">
+                  {group.label}
+                </p>
+                <ul className="list-group">
+                  {group.items.map((m) => (
+                    <MatchRow key={m.id} match={m} showMoney />
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
         )}

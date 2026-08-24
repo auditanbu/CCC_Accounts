@@ -86,7 +86,7 @@ export async function getTeamBalance(): Promise<number> {
 export type PlayerPending = {
   id: number;
   name: string;
-  jerseyNumber: number;
+  jerseyNumber: number | null;
   mobileNumber: string | null;
   status: "ACTIVE" | "INACTIVE";
   defaultMatchFee: number;
@@ -264,6 +264,20 @@ export async function getUpcomingMatches(limit = 5) {
   return matches;
 }
 
+/**
+ * Playing XI of the most recently played match before this one — lets the
+ * roster editor default a new match sheet to whoever turned out last time.
+ */
+export async function getLastPlayedRosterIds(excludeMatchId: number): Promise<number[]> {
+  const today = startOfTodayIST();
+  const last = await prisma.match.findFirst({
+    where: { id: { not: excludeMatchId }, date: { lt: today } },
+    orderBy: { date: "desc" },
+    include: { players: { where: { isPresent: true }, select: { playerId: true } } },
+  });
+  return last?.players.map((p) => p.playerId) ?? [];
+}
+
 export async function getMatchDetail(matchId: number) {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -279,6 +293,17 @@ export async function getMatchDetail(matchId: number) {
   });
   if (!match) return null;
   return { match, totals: computeMatchTotals(match) };
+}
+
+/** Every opponent team name played before, most recent first — powers the
+ * autocomplete on the match form so a repeat fixture doesn't need retyping. */
+export async function getDistinctOpponentNames(): Promise<string[]> {
+  const matches = await prisma.match.findMany({
+    select: { opponentTeam: true },
+    distinct: ["opponentTeam"],
+    orderBy: { date: "desc" },
+  });
+  return matches.map((m) => m.opponentTeam);
 }
 
 /* ------------------------------------------------------------------ */

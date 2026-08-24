@@ -5,6 +5,8 @@ import { ChevronRightIcon } from "@/components/ui/Icons";
 import { TEAM_NAME } from "@/lib/constants";
 import { formatDate, formatTime, relativeDay } from "@/lib/format";
 
+export type MatchResult = "WIN" | "LOSS" | "TIE" | "NO_RESULT";
+
 export type MatchCardData = {
   id: number;
   date: Date;
@@ -14,6 +16,7 @@ export type MatchCardData = {
   opponentTeam: string;
   ground: { name: string; location?: string | null };
   tournament: { name: string } | null;
+  result?: MatchResult | null;
   totals?: { collection: number; expenses: number; net: number; presentCount: number };
 };
 
@@ -23,6 +26,23 @@ export function MatchTypeBadge({ type }: { type: "TOURNAMENT" | "PRACTICE" }) {
   ) : (
     <span className="badge bg-ios-teal/10 text-[#1F8A9E]">Practice</span>
   );
+}
+
+const RESULT_LABELS: Record<MatchResult, string> = {
+  WIN: "Won",
+  LOSS: "Lost",
+  TIE: "Tie",
+  NO_RESULT: "No result",
+};
+
+export function ResultBadge({ result }: { result: MatchResult }) {
+  if (result === "WIN") {
+    return <span className="badge bg-ios-green/12 text-[#248A3D]">{RESULT_LABELS[result]}</span>;
+  }
+  if (result === "LOSS") {
+    return <span className="badge bg-ios-red/10 text-ios-red">{RESULT_LABELS[result]}</span>;
+  }
+  return <span className="badge bg-black/[0.05] text-label-secondary">{RESULT_LABELS[result]}</span>;
 }
 
 export function MatchCard({ match, showMoney = true }: { match: MatchCardData; showMoney?: boolean }) {
@@ -38,6 +58,7 @@ export function MatchCard({ match, showMoney = true }: { match: MatchCardData; s
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <MatchTypeBadge type={match.matchType} />
+            {match.result ? <ResultBadge result={match.result} /> : null}
             {match.matchNumber ? (
               <span className="badge bg-black/[0.05] text-label-secondary">
                 Match {match.matchNumber}

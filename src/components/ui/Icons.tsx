@@ -136,3 +136,23 @@ export const StadiumIcon = (p: IconProps) => (
     <path d="M3 9v5.4c0 2.3 4 4.2 9 4.2s9-1.9 9-4.2V9" />
   </Base>
 );
+
+export const SunIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="4.4" />
+    <path d="M12 2.6v2.6M12 18.8v2.6M4.6 4.6l1.9 1.9M17.5 17.5l1.9 1.9M2.6 12h2.6M18.8 12h2.6M4.6 19.4l1.9-1.9M17.5 6.5l1.9-1.9" />
+  </Base>
+);
+
+export const MoonIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20 13.4A8.4 8.4 0 1 1 10.6 4a6.6 6.6 0 0 0 9.4 9.4Z" />
+  </Base>
+);
+
+export const LogoutIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9.4 20.4H6.2a1.8 1.8 0 0 1-1.8-1.8V5.4a1.8 1.8 0 0 1 1.8-1.8h3.2" />
+    <path d="M15.4 16.4 20 12l-4.6-4.4M20 12H9.4" />
+  </Base>
+);

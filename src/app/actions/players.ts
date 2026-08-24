@@ -10,11 +10,17 @@ import { type ActionState, runAction } from "@/app/actions/types";
 
 const playerSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(60),
-  jerseyNumber: z.coerce
-    .number({ invalid_type_error: "Jersey number is required." })
-    .int("Jersey number must be a whole number.")
-    .min(0, "Jersey number can't be negative.")
-    .max(999, "Jersey number looks too large."),
+  // Optional and not unique — some players don't have one yet, and it's
+  // fine for two players to share a number across seasons.
+  jerseyNumber: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? Number(v) : null))
+    .refine(
+      (v) => v === null || (Number.isInteger(v) && v >= 0 && v <= 999),
+      "Jersey number must be a whole number between 0 and 999.",
+    ),
   mobileNumber: z
     .string()
     .trim()
@@ -31,7 +37,7 @@ const playerSchema = z.object({
 function parse(formData: FormData) {
   return playerSchema.parse({
     name: formData.get("name"),
-    jerseyNumber: formData.get("jerseyNumber"),
+    jerseyNumber: formData.get("jerseyNumber") ?? "",
     mobileNumber: formData.get("mobileNumber") ?? "",
     status: formData.get("status") ?? "ACTIVE",
     defaultMatchFee: formData.get("defaultMatchFee") ?? 100,
@@ -52,9 +58,20 @@ export async function createPlayerAction(
   return runAction(async () => {
     await requireAdmin();
     const data = parse(formData);
-    await prisma.player.create({ data });
+    const created = await prisma.player.create({ data });
     revalidatePlayers();
-    return { ok: true, message: `${data.name} added to the squad.` };
+    return {
+      ok: true,
+      message: `${data.name} added to the squad.`,
+      // Lets a caller (e.g. the roster editor) add them to a match sheet
+      // straight away, without re-fetching the squad list.
+      created: {
+        id: created.id,
+        name: created.name,
+        jerseyNumber: created.jerseyNumber,
+        defaultMatchFee: created.defaultMatchFee,
+      },
+    };
   });
 }
 

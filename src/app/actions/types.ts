@@ -8,9 +8,17 @@ export type ActionState = {
   fieldErrors?: Record<string, string>;
   /**
    * Set by create actions so a caller can act on the new record without a
-   * round trip — used to select a just-created tournament in the match form.
+   * round trip — used to select a just-created tournament in the match form,
+   * or to drop a just-created player straight into a match's roster.
    */
-  created?: { id: number; name: string; overs?: number };
+  created?: {
+    id: number;
+    name: string;
+    overs?: number;
+    groundIds?: number[];
+    jerseyNumber?: number | null;
+    defaultMatchFee?: number;
+  };
 };
 
 export const idleState: ActionState = { ok: false };
@@ -56,7 +64,6 @@ function isNextControlFlow(err: unknown): boolean {
 /** Turn common Prisma constraint errors into something a captain can act on. */
 function humanise(message: string): string {
   if (message.includes("Unique constraint failed")) {
-    if (message.includes("jerseyNumber")) return "That jersey number is already taken.";
     if (message.includes("name")) return "That name already exists.";
     return "That record already exists.";
   }
