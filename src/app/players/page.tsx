@@ -13,6 +13,41 @@ import type { PlayerPending } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Players" };
 
+const SORT_OPTIONS = [
+  { key: "balance", label: "Balance" },
+  { key: "name", label: "Name" },
+] as const;
+type SortKey = (typeof SORT_OPTIONS)[number]["key"];
+
+/** Highest pending balance first, or alphabetical — balance surfaces who to chase. */
+function sortPlayers(list: PlayerPending[], sort: SortKey): PlayerPending[] {
+  const sorted = [...list];
+  if (sort === "name") {
+    sorted.sort((a, b) => a.name.localeCompare(b.name));
+  } else {
+    sorted.sort((a, b) => b.pending - a.pending);
+  }
+  return sorted;
+}
+
+function SortToggle({ sort }: { sort: SortKey }) {
+  return (
+    <div className="inline-flex rounded-lg bg-black/[0.05] p-0.5">
+      {SORT_OPTIONS.map((opt) => (
+        <Link
+          key={opt.key}
+          href={opt.key === "balance" ? "/players" : `/players?sort=${opt.key}`}
+          className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
+            sort === opt.key ? "bg-ios-blue/10 text-ios-blue" : "text-label-secondary"
+          }`}
+        >
+          {opt.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function PlayerRow({ p }: { p: PlayerPending }) {
   const settled = p.pending <= 0;
   return (
@@ -64,11 +99,18 @@ function PlayerRow({ p }: { p: PlayerPending }) {
   );
 }
 
-export default async function PlayersPage() {
+export default async function PlayersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
+  const { sort: sortParam } = await searchParams;
+  const sort: SortKey = sortParam === "name" ? "name" : "balance";
+
   const [players, admin] = await Promise.all([getPlayerPendings(), isAdmin()]);
 
-  const active = players.filter((p) => p.status === "ACTIVE");
-  const inactive = players.filter((p) => p.status === "INACTIVE");
+  const active = sortPlayers(players.filter((p) => p.status === "ACTIVE"), sort);
+  const inactive = sortPlayers(players.filter((p) => p.status === "INACTIVE"), sort);
   const totalPending = players.reduce((s, p) => s + Math.max(p.pending, 0), 0);
   const totalCollected = players.reduce((s, p) => s + p.totalCollected, 0);
   const owing = players.filter((p) => p.pending > 0).length;
@@ -103,7 +145,7 @@ export default async function PlayersPage() {
 
       {admin ? <AddPlayerForm suggestedJersey={nextJersey} /> : null}
 
-      <Section title={`Active squad · ${active.length}`}>
+      <Section title={`Active squad · ${active.length}`} action={<SortToggle sort={sort} />}>
         {active.length === 0 ? (
           <EmptyState
             icon="👤"
