@@ -71,7 +71,7 @@ function PlayerRow({ p }: { p: PlayerPending }) {
 /** The active squad list, with a sort control — inactive players don't get
  * one since that list is short and always jersey-ordered. */
 export function ActiveSquadList({ players }: { players: PlayerPending[] }) {
-  const [sort, setSort] = useState<SortKey>("name");
+  const [sort, setSort] = useState<SortKey>("balance");
   // Balance's own direction, independent of which sort is currently active —
   // remembered across clicks so re-picking Balance resumes where it left off.
   const [balanceDesc, setBalanceDesc] = useState(true);
