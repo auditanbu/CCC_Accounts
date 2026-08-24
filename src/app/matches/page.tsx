@@ -7,13 +7,31 @@ import { Money } from "@/components/ui/Money";
 import { PlusIcon } from "@/components/ui/Icons";
 import { getMatchesSplit, getTeamSummary } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Matches" };
 
-export default async function MatchesPage() {
+export default async function MatchesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tournamentId?: string }>;
+}) {
+  const { tournamentId: tournamentIdParam } = await searchParams;
+  const parsedTournamentId = tournamentIdParam ? Number(tournamentIdParam) : NaN;
+  const requestedTournamentId = Number.isFinite(parsedTournamentId) ? parsedTournamentId : undefined;
+
+  const tournament = requestedTournamentId
+    ? await prisma.tournament.findUnique({
+        where: { id: requestedTournamentId },
+        select: { id: true, name: true },
+      })
+    : null;
+  // Ignore an unrecognised id rather than silently filtering to zero matches.
+  const tournamentId = tournament ? tournament.id : undefined;
+
   const [{ played, upcoming }, summary, admin] = await Promise.all([
-    getMatchesSplit(),
+    getMatchesSplit(tournamentId),
     getTeamSummary(),
     isAdmin(),
   ]);
@@ -34,6 +52,17 @@ export default async function MatchesPage() {
           </Link>
         ) : null}
       </div>
+
+      {tournament ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-ios-indigo/10 px-3.5 py-2.5 text-[13px]">
+          <span className="min-w-0 truncate text-ios-indigo">
+            🏆 Showing matches for <strong>{tournament.name}</strong>
+          </span>
+          <Link href="/matches" className="shrink-0 font-medium text-ios-blue">
+            Clear
+          </Link>
+        </div>
+      ) : null}
 
       <div className="card grid grid-cols-3 divide-x divide-separator/70">
         <div className="px-3 py-3.5 text-center">
@@ -77,9 +106,13 @@ export default async function MatchesPage() {
           <EmptyState
             icon="🏏"
             title="No matches recorded"
-            description="Create a match to start tracking collections and expenses."
+            description={
+              tournament
+                ? `No matches recorded yet for ${tournament.name}.`
+                : "Create a match to start tracking collections and expenses."
+            }
             action={
-              admin ? (
+              admin && !tournament ? (
                 <Link href="/matches/new" className="btn-tinted btn-sm">
                   Create the first match
                 </Link>

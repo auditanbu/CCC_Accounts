@@ -221,16 +221,17 @@ const matchListInclude = {
   expenses: { select: { amount: true } },
 } as const;
 
-export async function getMatchesSplit() {
+export async function getMatchesSplit(tournamentId?: number) {
   const today = startOfTodayIST();
+  const tournamentFilter = tournamentId ? { tournamentId } : {};
   const [played, upcoming] = await Promise.all([
     prisma.match.findMany({
-      where: { date: { lt: today } },
+      where: { date: { lt: today }, ...tournamentFilter },
       include: matchListInclude,
       orderBy: { date: "desc" },
     }),
     prisma.match.findMany({
-      where: { date: { gte: today } },
+      where: { date: { gte: today }, ...tournamentFilter },
       include: matchListInclude,
       orderBy: { date: "asc" },
     }),
