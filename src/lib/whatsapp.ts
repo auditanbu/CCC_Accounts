@@ -51,8 +51,11 @@ export function buildWhatsAppSummary(input: WhatsAppSummaryInput): string {
   }
 
   // Negative pending means paid in more than they owe — carried as credit
-  // against future matches, not money to chase.
-  const excess = input.pendings.filter((p) => p.pending < 0);
+  // against future matches, not money to chase. Ascending order therefore
+  // puts the largest credit first.
+  const excess = input.pendings
+    .filter((p) => p.pending < 0)
+    .sort((a, b) => a.pending - b.pending);
   if (excess.length > 0) {
     lines.push("");
     lines.push("✅ *Excess Paid:*");
