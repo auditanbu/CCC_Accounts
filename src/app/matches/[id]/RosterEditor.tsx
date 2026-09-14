@@ -94,7 +94,6 @@ export function RosterEditor({
   rows,
   lastMatchPlayerIds = [],
   forceEdit = false,
-  paymentNote,
 }: {
   matchId: number;
   rows: RosterRow[];
@@ -103,7 +102,6 @@ export function RosterEditor({
   /** Opens straight into squad edit mode — used right after creating a new match. */
   forceEdit?: boolean;
   /** Transaction note for "Pay via UPI" links — this match's date and ground. */
-  paymentNote: string;
 }) {
   const [state, action] = useActionState(saveRosterAction, idleState);
   const [activeTab, setActiveTab] = useState<Tab>("squad");
@@ -409,11 +407,7 @@ export function RosterEditor({
                       </span>
                       <StatusBadge payable={row.payableAmount} collected={row.collectedAmount} />
                       {due > 0 ? (
-                        <UpiPayButton
-                          note={paymentNote}
-                          amount={due}
-                          className="mt-1 block text-[12px] font-medium text-ios-blue"
-                        >
+                        <UpiPayButton className="mt-1 block text-[12px] font-medium text-ios-blue">
                           Pay via UPI
                         </UpiPayButton>
                       ) : null}
