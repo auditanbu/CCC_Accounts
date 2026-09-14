@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { MatchResult } from "@/components/MatchCard";
 import { prisma } from "@/lib/prisma";
 import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
 import { istParts, round2 } from "@/lib/format";
@@ -310,6 +311,19 @@ export async function getDistinctOpponentNames(): Promise<string[]> {
 /* Tournaments                                                         */
 /* ------------------------------------------------------------------ */
 
+/** One fixture inside a tournament, for the card's unfoldable panels. */
+export type TournamentMatchRow = {
+  id: number;
+  date: Date;
+  matchNumber: number | null;
+  opponentTeam: string;
+  result: MatchResult | null;
+  ourScore: string | null;
+  opponentScore: string | null;
+  /** Tournament-fee expenses booked against this match. */
+  feePaid: number;
+};
+
 export type TournamentOutstanding = {
   id: number;
   name: string;
@@ -325,6 +339,8 @@ export type TournamentOutstanding = {
   collection: number;
   expenses: number;
   net: number;
+  /** Fixture-by-fixture detail, in playing order. */
+  matches: TournamentMatchRow[];
 };
 
 export async function getTournamentOutstandings(): Promise<TournamentOutstanding[]> {
@@ -345,14 +361,36 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
     let feePaid = 0;
     let collection = 0;
     let expenses = 0;
+    const matchRows: TournamentMatchRow[] = [];
 
     for (const match of t.matches) {
       for (const p of match.players) collection += p.collectedAmount;
+      let matchFee = 0;
       for (const e of match.expenses) {
         expenses += e.amount;
-        if (e.category === TOURNAMENT_FEE_CATEGORY) feePaid += e.amount;
+        if (e.category === TOURNAMENT_FEE_CATEGORY) matchFee += e.amount;
       }
+      feePaid += matchFee;
+      matchRows.push({
+        id: match.id,
+        date: match.date,
+        matchNumber: match.matchNumber,
+        opponentTeam: match.opponentTeam,
+        result: match.result,
+        ourScore: match.ourScore,
+        opponentScore: match.opponentScore,
+        feePaid: round2(matchFee),
+      });
     }
+
+    // Playing order: by fixture number where the tournament numbers its
+    // matches, falling back to date for any fixture recorded without one.
+    matchRows.sort((a, b) => {
+      if (a.matchNumber != null && b.matchNumber != null) return a.matchNumber - b.matchNumber;
+      if (a.matchNumber != null) return -1;
+      if (b.matchNumber != null) return 1;
+      return a.date.getTime() - b.date.getTime();
+    });
 
     return {
       id: t.id,
@@ -369,6 +407,7 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
       collection: round2(collection),
       expenses: round2(expenses),
       net: round2(collection - expenses),
+      matches: matchRows,
     };
   });
 }

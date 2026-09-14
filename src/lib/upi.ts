@@ -33,7 +33,9 @@ function transactionRef(): string {
  * app render the confirm screen fine, but the actual payment got rejected
  * by the backend with a misleading "exceeded bank limit" error (seen on a
  * ₹5 test, which no bank would genuinely cap). `am` is spec'd too and, when
- * known, saves the payer from having to type the exact amount themselves.
+ * known, saves the payer from having to type the exact amount themselves —
+ * but it is optional, and callers that want the payer to enter their own
+ * amount simply omit it.
  *
  * Even with those fixed, the same VPA can still fail this way through an
  * intent link while a manually-typed transfer to it succeeds — UPI apps and
@@ -43,7 +45,7 @@ function transactionRef(): string {
  * still fails, that's a bank/NPCI-side restriction on intent payments to
  * this account, not something a link's parameters can override.
  */
-export function buildUpiAppLink(app: UpiAppId, note: string, amount?: number): string {
+export function buildUpiAppLink(app: UpiAppId, note?: string, amount?: number): string {
   const scheme = UPI_APPS.find((a) => a.id === app)!.scheme;
   const entries: [string, string][] = [
     ["pa", TEAM_UPI_ID],
@@ -51,7 +53,10 @@ export function buildUpiAppLink(app: UpiAppId, note: string, amount?: number): s
     ["cu", "INR"],
     ["tr", transactionRef()],
   ];
+  // Both optional: left out, the app opens on its own amount/note entry
+  // screen with the payee already set, which is what the team wants when
+  // paying off a running balance rather than one fixed match due.
   if (amount !== undefined) entries.push(["am", amount.toFixed(2)]);
-  entries.push(["tn", note]);
+  if (note) entries.push(["tn", note]);
   return `${scheme}?${entries.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&")}`;
 }

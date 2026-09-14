@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { TournamentPanels } from "@/app/tournaments/TournamentPanels";
 import { AddTournamentForm, EditTournamentPanel, type GroundOption } from "@/components/TournamentForms";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, Section } from "@/components/ui/Card";
@@ -116,14 +116,7 @@ function TournamentCard({
           </div>
         </dl>
 
-        {t.matchCount > 0 ? (
-          <Link
-            href={`/matches?tournamentId=${t.id}`}
-            className="mt-3 inline-block text-[13px] font-medium text-ios-blue"
-          >
-            View matches
-          </Link>
-        ) : null}
+        <TournamentPanels matches={t.matches} totalFee={t.totalFee} feePaid={t.feePaid} />
       </div>
     </div>
   );

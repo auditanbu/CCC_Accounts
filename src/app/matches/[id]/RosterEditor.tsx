@@ -458,7 +458,7 @@ export function RosterEditor({
                           const mode = d.mode === "" && num(collected) > 0 ? "UPI" : d.mode;
                           update(row.playerId, { collected, mode });
                         }}
-                        className="input w-20 shrink-0 px-2 py-1.5 text-right text-[14px] tnum"
+                        className="input w-[4.75rem] shrink-0 px-2 py-1.5 text-right text-[16px] tnum"
                       />
                       <button
                         type="button"

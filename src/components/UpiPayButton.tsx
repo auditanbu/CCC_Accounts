@@ -25,9 +25,11 @@ export function UpiPayButton({
   className = "btn-primary btn-sm w-full sm:w-auto",
   children,
 }: {
-  /** Transaction note shown to the payer — varies by where this is used. */
-  note: string;
-  /** Pre-fills the amount when known, so the payer doesn't have to type it. */
+  /** Transaction note shown to the payer — varies by where this is used.
+   * Omitted where the payer should fill in their own. */
+  note?: string;
+  /** Pre-fills the amount when known, so the payer doesn't have to type it.
+   * Omitted where the payer should choose how much to pay. */
   amount?: number;
   className?: string;
   children?: ReactNode;

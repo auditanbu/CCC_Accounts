@@ -6,11 +6,21 @@ import { CheckIcon, ShareIcon } from "@/components/ui/Icons";
 
 type Status = "idle" | "copied" | "error";
 
-/** The team's WhatsApp group — the message is copied, then this is opened in
- * the same tab so it can be pasted straight in (WhatsApp has no API to
- * pre-fill a group's message from a link, so pasting is still a manual last
- * step). */
-const WHATSAPP_GROUP_URL = "https://chat.whatsapp.com/LKsSaTjsiYXLf80aeUEbQa";
+/** The team's WhatsApp group invite code. */
+const WHATSAPP_GROUP_CODE = "LKsSaTjsiYXLf80aeUEbQa";
+
+/** Handed straight to the OS, which routes it to the installed WhatsApp app.
+ * Installed as a standalone PWA, an https:// link to an external origin is
+ * pushed out to the browser first, which is the stray tab that appears before
+ * the chat — the custom scheme skips it. */
+const WHATSAPP_APP_URL = `whatsapp://chat?code=${WHATSAPP_GROUP_CODE}`;
+
+/** Fallback for anywhere WhatsApp isn't installed to claim the scheme. */
+const WHATSAPP_WEB_URL = `https://chat.whatsapp.com/${WHATSAPP_GROUP_CODE}`;
+
+/** Long enough for the OS hand-off to hide the page, short enough that a
+ * machine without WhatsApp isn't left staring at nothing. */
+const APP_HANDOFF_GRACE_MS = 1200;
 
 /**
  * Copies the pre-rendered WhatsApp summary to the clipboard and navigates to
@@ -37,9 +47,9 @@ export function ShareButton({ text }: { text: string }) {
 
   async function copyAndOpen() {
     const copied = await copyText();
-    // Same tab, no new tab — and only once the copy actually landed, so a
-    // failed copy leaves the page in place with the manual-copy preview.
-    if (copied) window.location.href = WHATSAPP_GROUP_URL;
+    // Only once the copy actually landed, so a failed copy leaves the page in
+    // place with the manual-copy preview.
+    if (copied) openWhatsApp();
   }
 
   async function copyText(): Promise<boolean> {
@@ -99,6 +109,42 @@ export function ShareButton({ text }: { text: string }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Hands off to the WhatsApp app via its custom scheme, falling back to the
+ * web invite if nothing claims it.
+ *
+ * There's no success callback for a scheme hand-off, so the fallback is timed:
+ * if the app takes over, the page is hidden or unloaded before the timer runs
+ * and the listeners cancel it. If nothing claims the scheme the page stays
+ * visible and the https:// URL loads instead.
+ */
+function openWhatsApp() {
+  let settled = false;
+  const cancel = () => {
+    settled = true;
+    cleanup();
+  };
+  const cleanup = () => {
+    document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("pagehide", cancel);
+    window.removeEventListener("blur", cancel);
+  };
+  const onHide = () => {
+    if (document.hidden) cancel();
+  };
+
+  document.addEventListener("visibilitychange", onHide);
+  window.addEventListener("pagehide", cancel);
+  window.addEventListener("blur", cancel);
+
+  setTimeout(() => {
+    cleanup();
+    if (!settled && !document.hidden) window.location.href = WHATSAPP_WEB_URL;
+  }, APP_HANDOFF_GRACE_MS);
+
+  window.location.href = WHATSAPP_APP_URL;
 }
 
 /** execCommand path for browsers without the async Clipboard API. */
