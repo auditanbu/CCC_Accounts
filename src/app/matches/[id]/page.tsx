@@ -102,6 +102,11 @@ export default async function MatchDetailPage({
     groundName: match.ground.name,
     matchCollection: totals.collection,
     matchExpenses: totals.expenses,
+    expenseItems: match.expenses.map((e) => ({
+      category: e.category,
+      note: e.note,
+      amount: e.amount,
+    })),
     netAmount: totals.net,
     teamBalance,
     pendings: playerPendings.map((p) => ({ name: p.name, pending: p.pending })),

@@ -7,6 +7,8 @@ export type WhatsAppSummaryInput = {
   groundName: string;
   matchCollection: number;
   matchExpenses: number;
+  /** Individual expense lines, itemised under the expenses total. */
+  expenseItems?: { category: string; note?: string | null; amount: number }[];
   netAmount: number;
   teamBalance: number;
   pendings: { name: string; pending: number }[];
@@ -25,11 +27,21 @@ export function buildWhatsAppSummary(input: WhatsAppSummaryInput): string {
   lines.push("💰 *Match Accounts:*");
   lines.push(`Total Collection: ₹${formatAmount(input.matchCollection)}`);
   lines.push(`Total Expenses: ₹${formatAmount(input.matchExpenses)}`);
+  // Itemised breakdown sits directly under the total so the group can see
+  // what the money went on without opening the app.
+  for (const e of input.expenseItems ?? []) {
+    const note = e.note?.trim();
+    const label = note ? `${e.category} (${note})` : e.category;
+    lines.push(`  • ${label}: ₹${formatAmount(e.amount)}`);
+  }
   lines.push(`Net Match Balance: ₹${formatAmount(input.netAmount)}`);
   lines.push("");
   lines.push(`📊 *Current Team Balance:* ₹${formatAmount(input.teamBalance)}`);
 
-  const owing = input.pendings.filter((p) => p.pending > 0);
+  // Biggest dues first — the names worth chasing sit at the top of the list.
+  const owing = input.pendings
+    .filter((p) => p.pending > 0)
+    .sort((a, b) => b.pending - a.pending);
   if (owing.length > 0) {
     lines.push("");
     lines.push("⚠️ *Player Pendings:*");
