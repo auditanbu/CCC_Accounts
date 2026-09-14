@@ -1,4 +1,4 @@
-import { TEAM_NAME, TEAM_UPI_ID } from "@/lib/constants";
+import { TEAM_UPI_ID, TEAM_UPI_NAME } from "@/lib/constants";
 
 export type UpiAppId = "gpay" | "phonepe" | "bhim";
 
@@ -12,50 +12,39 @@ export const UPI_APPS: { id: UpiAppId; name: string; scheme: string }[] = [
   { id: "bhim", name: "BHIM", scheme: "upi://pay" },
 ];
 
-/** A short unique reference per link — NPCI's `tr` field. Not strictly
- * mandatory, but its absence is one more way an intent-triggered payment
- * reads as less "complete" than a manually-typed transfer to the same
- * backend checks. */
-function transactionRef(): string {
-  return `ESK${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
-}
-
 /**
- * An app-specific UPI deep link — Google Pay's `tez://` or PhonePe's own
- * scheme opens that exact app's confirm-payment screen directly, no OS
- * app-chooser in between. BHIM uses the standard upi:// scheme instead (see
- * above), so picking it may still show a chooser if more than one app
- * answers to upi://. Either way there's no callback to this app, so a
- * payment has to be marked collected manually afterwards. If the picked
- * app isn't installed, the tap silently does nothing.
+ * A person-to-person UPI deep link to the team's collection account.
  *
- * `cu=INR` is mandatory per NPCI's UPI linking spec — leaving it out let the
- * app render the confirm screen fine, but the actual payment got rejected
- * by the backend with a misleading "exceeded bank limit" error (seen on a
- * ₹5 test, which no bank would genuinely cap). `am` is spec'd too and, when
- * known, saves the payer from having to type the exact amount themselves —
- * but it is optional, and callers that want the payer to enter their own
- * amount simply omit it.
+ * Deliberately minimal. "You've exceeded the bank limit for this payment" is
+ * not what it says it is: in UPI apps it doubles as the generic fallback for a
+ * payload the risk engine refused, which is why it showed up on a ₹5 test and
+ * on ₹500 alike — amounts no bank caps — while the same VPA typed by hand
+ * went through. Two things in the old link caused it:
  *
- * Even with those fixed, the same VPA can still fail this way through an
- * intent link while a manually-typed transfer to it succeeds — UPI apps and
- * banks commonly apply stricter checks to externally-triggered ("intent")
- * payments than to ones typed inside their own UI, especially to a personal
- * (non-merchant) VPA. `tr` narrows that gap but can't fully close it; if it
- * still fails, that's a bank/NPCI-side restriction on intent payments to
- * this account, not something a link's parameters can override.
+ *  - `pn` carried the team name while the VPA resolves to its account
+ *    holder's name. Apps compare the two, and a mismatch is exactly what a
+ *    spoofed payment link looks like, so it gets blocked. `pn` now carries
+ *    the registered name (TEAM_UPI_NAME), so the two agree.
+ *
+ *  - `tr` is NPCI's merchant transaction reference, mandated for P2M and
+ *    expected alongside a merchant code (`mc`) and, for verified merchants, a
+ *    signature. Sending it to a personal VPA with neither reads as a
+ *    malformed merchant intent. This is P2P, so it is gone.
+ *
+ * `cu=INR` stays: it is spec-mandatory, and leaving it out produced this same
+ * error for its own reasons. `am` and `tn` are omitted by default so the payer
+ * enters their own amount and note.
+ *
+ * There is no callback to this app, so a payment is still marked collected by
+ * hand afterwards. If the picked app isn't installed, the tap does nothing.
  */
 export function buildUpiAppLink(app: UpiAppId, note?: string, amount?: number): string {
   const scheme = UPI_APPS.find((a) => a.id === app)!.scheme;
   const entries: [string, string][] = [
     ["pa", TEAM_UPI_ID],
-    ["pn", TEAM_NAME],
+    ["pn", TEAM_UPI_NAME],
     ["cu", "INR"],
-    ["tr", transactionRef()],
   ];
-  // Both optional: left out, the app opens on its own amount/note entry
-  // screen with the payee already set, which is what the team wants when
-  // paying off a running balance rather than one fixed match due.
   if (amount !== undefined) entries.push(["am", amount.toFixed(2)]);
   if (note) entries.push(["tn", note]);
   return `${scheme}?${entries.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&")}`;
