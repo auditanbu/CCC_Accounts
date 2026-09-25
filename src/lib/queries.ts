@@ -466,6 +466,72 @@ export async function getTournamentOptions(
 }
 
 /* ------------------------------------------------------------------ */
+/* Grounds                                                             */
+/* ------------------------------------------------------------------ */
+
+export type GroundMatchRow = {
+  id: number;
+  date: Date;
+  opponentTeam: string;
+  result: MatchResult | null;
+  ourScore: string | null;
+  opponentScore: string | null;
+  /** Null for a practice game, which belongs to no tournament. */
+  tournamentName: string | null;
+  /** Fixture still to be played — decided here so the server and the browser
+      can't disagree about where "today" falls. */
+  upcoming: boolean;
+};
+
+export type GroundWithMatches = {
+  id: number;
+  name: string;
+  location: string | null;
+  googleMapUrl: string | null;
+  /** Every fixture at this venue, most recent first. */
+  matches: GroundMatchRow[];
+};
+
+export async function getGroundsWithMatches(): Promise<GroundWithMatches[]> {
+  const grounds = await prisma.ground.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      matches: {
+        orderBy: { date: "desc" },
+        select: {
+          id: true,
+          date: true,
+          opponentTeam: true,
+          result: true,
+          ourScore: true,
+          opponentScore: true,
+          tournament: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  const today = startOfTodayIST();
+
+  return grounds.map((g) => ({
+    id: g.id,
+    name: g.name,
+    location: g.location,
+    googleMapUrl: g.googleMapUrl,
+    matches: g.matches.map((m) => ({
+      id: m.id,
+      date: m.date,
+      opponentTeam: m.opponentTeam,
+      result: m.result,
+      ourScore: m.ourScore,
+      opponentScore: m.opponentScore,
+      tournamentName: m.tournament?.name ?? null,
+      upcoming: m.date >= today,
+    })),
+  }));
+}
+
+/* ------------------------------------------------------------------ */
 /* Expense breakdown                                                   */
 /* ------------------------------------------------------------------ */
 
