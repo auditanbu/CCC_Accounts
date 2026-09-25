@@ -4,6 +4,7 @@ import type { MatchResult } from "@/components/MatchCard";
 import { prisma } from "@/lib/prisma";
 import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
 import { istParts, round2 } from "@/lib/format";
+import { isTournamentCompleted } from "@/lib/tournaments";
 
 /* ------------------------------------------------------------------ */
 /* Time helpers                                                        */
@@ -410,6 +411,58 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
       matches: matchRows,
     };
   });
+}
+
+export type TournamentOptionRow = {
+  id: number;
+  name: string;
+  overs: number;
+  groundIds: number[];
+  /** The fixture number a new match against this tournament should take. */
+  nextMatchNumber: number;
+};
+
+/**
+ * Tournaments offered in the match form's picker. Completed ones are left
+ * out — every fixture is already recorded, so no new match belongs to them.
+ *
+ * `keepId` forces one tournament back into the list regardless: a match
+ * already attached to a since-completed tournament still has to show it
+ * when edited, otherwise saving the form would silently move the match off
+ * that tournament.
+ */
+export async function getTournamentOptions(
+  keepId?: number | null,
+): Promise<TournamentOptionRow[]> {
+  const tournaments = await prisma.tournament.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      // The form narrows its ground list to the venues of the chosen tournament.
+      grounds: { select: { id: true } },
+      matches: { select: { matchNumber: true } },
+    },
+  });
+
+  return tournaments
+    .filter(
+      (t) =>
+        t.id === keepId ||
+        !isTournamentCompleted({ totalMatches: t.totalMatches, matchCount: t.matches.length }),
+    )
+    .map((t) => {
+      // Usually the two agree. They part company when a fixture was recorded
+      // without a number (count runs ahead) or when fixtures were entered out
+      // of order (the highest number runs ahead); the larger of the two is the
+      // one that doesn't collide with a number already taken.
+      const highest = t.matches.reduce((max, m) => Math.max(max, m.matchNumber ?? 0), 0);
+      return {
+        id: t.id,
+        name: t.name,
+        overs: t.overs,
+        groundIds: t.grounds.map((g) => g.id),
+        nextMatchNumber: Math.max(highest, t.matches.length) + 1,
+      };
+    });
 }
 
 /* ------------------------------------------------------------------ */
