@@ -6,7 +6,7 @@ import { MatchForm } from "@/components/MatchForm";
 import { ChevronLeftIcon } from "@/components/ui/Icons";
 import { createMatchAction } from "@/app/actions/matches";
 import { prisma } from "@/lib/prisma";
-import { getDistinctOpponentNames } from "@/lib/queries";
+import { getDistinctOpponentNames, getTournamentOptions } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +17,7 @@ export default async function NewMatchPage() {
 
   const [grounds, tournaments, opponentSuggestions] = await Promise.all([
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
-    prisma.tournament.findMany({
-      orderBy: { name: "asc" },
-      // The form narrows its ground list to the venues of the chosen tournament.
-      include: { grounds: { select: { id: true } } },
-    }),
+    getTournamentOptions(),
     getDistinctOpponentNames(),
   ]);
 
@@ -55,10 +51,7 @@ export default async function NewMatchPage() {
         <MatchForm
           action={createMatchAction}
           grounds={grounds}
-          tournaments={tournaments.map((t) => ({
-            ...t,
-            groundIds: t.grounds.map((g) => g.id),
-          }))}
+          tournaments={tournaments}
           opponentSuggestions={opponentSuggestions}
           submitLabel="Create match"
         />

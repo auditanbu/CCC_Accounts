@@ -7,7 +7,7 @@ import { ConfirmSubmit } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
 import { deleteMatchAction, updateMatchAction } from "@/app/actions/matches";
 import { prisma } from "@/lib/prisma";
-import { getDistinctOpponentNames } from "@/lib/queries";
+import { getDistinctOpponentNames, getTournamentOptions } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,17 +24,16 @@ export default async function EditMatchPage({
 
   if (!(await isAdmin())) redirect(`/login?next=/matches/${matchId}/edit`);
 
-  const [match, grounds, tournaments, opponentSuggestions] = await Promise.all([
+  const [match, grounds, opponentSuggestions] = await Promise.all([
     prisma.match.findUnique({ where: { id: matchId } }),
     prisma.ground.findMany({ orderBy: { name: "asc" } }),
-    prisma.tournament.findMany({
-      orderBy: { name: "asc" },
-      // The form narrows its ground list to the venues of the chosen tournament.
-      include: { grounds: { select: { id: true } } },
-    }),
     getDistinctOpponentNames(),
   ]);
   if (!match) notFound();
+
+  // Needs the match first: whatever tournament it already sits on stays in the
+  // picker even once that tournament is complete.
+  const tournaments = await getTournamentOptions(match.tournamentId);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -52,10 +51,7 @@ export default async function EditMatchPage({
       <MatchForm
         action={updateMatchAction}
         grounds={grounds}
-        tournaments={tournaments.map((t) => ({
-          ...t,
-          groundIds: t.grounds.map((g) => g.id),
-        }))}
+        tournaments={tournaments}
         opponentSuggestions={opponentSuggestions}
         initial={match}
         submitLabel="Save changes"

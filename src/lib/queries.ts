@@ -4,6 +4,7 @@ import type { MatchResult } from "@/components/MatchCard";
 import { prisma } from "@/lib/prisma";
 import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
 import { istParts, round2 } from "@/lib/format";
+import { isTournamentCompleted } from "@/lib/tournaments";
 
 /* ------------------------------------------------------------------ */
 /* Time helpers                                                        */
@@ -410,6 +411,48 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
       matches: matchRows,
     };
   });
+}
+
+export type TournamentOptionRow = {
+  id: number;
+  name: string;
+  overs: number;
+  groundIds: number[];
+};
+
+/**
+ * Tournaments offered in the match form's picker. Completed ones are left
+ * out — every fixture is already recorded, so no new match belongs to them.
+ *
+ * `keepId` forces one tournament back into the list regardless: a match
+ * already attached to a since-completed tournament still has to show it
+ * when edited, otherwise saving the form would silently move the match off
+ * that tournament.
+ */
+export async function getTournamentOptions(
+  keepId?: number | null,
+): Promise<TournamentOptionRow[]> {
+  const tournaments = await prisma.tournament.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      // The form narrows its ground list to the venues of the chosen tournament.
+      grounds: { select: { id: true } },
+      _count: { select: { matches: true } },
+    },
+  });
+
+  return tournaments
+    .filter(
+      (t) =>
+        t.id === keepId ||
+        !isTournamentCompleted({ totalMatches: t.totalMatches, matchCount: t._count.matches }),
+    )
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      overs: t.overs,
+      groundIds: t.grounds.map((g) => g.id),
+    }));
 }
 
 /* ------------------------------------------------------------------ */
