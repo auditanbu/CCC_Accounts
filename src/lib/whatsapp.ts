@@ -5,6 +5,8 @@ export type WhatsAppSummaryInput = {
   opponentTeam: string;
   date: Date | string;
   groundName: string;
+  /** Scorecard link, when the match has one recorded. */
+  cricheroesUrl?: string | null;
   matchCollection: number;
   matchExpenses: number;
   /** Individual expense lines, itemised under the expenses total. */
@@ -23,6 +25,10 @@ export function buildWhatsAppSummary(input: WhatsAppSummaryInput): string {
 
   lines.push(`🏏 *Match Summary: ${TEAM_NAME} vs ${input.opponentTeam}*`);
   lines.push(`📅 Date: ${formatDate(input.date)} | 🏟 Ground: ${input.groundName}`);
+  const scorecard = input.cricheroesUrl?.trim();
+  if (scorecard) {
+    lines.push(`🔗 Scorecard: ${scorecard}`);
+  }
   lines.push("");
   lines.push("💰 *Match Accounts:*");
   lines.push(`Total Collection: ₹${formatAmount(input.matchCollection)}`);

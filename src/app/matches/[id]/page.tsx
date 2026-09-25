@@ -100,6 +100,7 @@ export default async function MatchDetailPage({
     opponentTeam: match.opponentTeam,
     date: match.date,
     groundName: match.ground.name,
+    cricheroesUrl: match.cricheroesUrl,
     matchCollection: totals.collection,
     matchExpenses: totals.expenses,
     expenseItems: match.expenses.map((e) => ({

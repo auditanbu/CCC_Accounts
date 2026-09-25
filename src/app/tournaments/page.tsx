@@ -9,15 +9,11 @@ import { TOURNAMENT_FEE_CATEGORY } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 import { getTournamentOutstandings, type TournamentOutstanding } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
+import { isTournamentCompleted } from "@/lib/tournaments";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Tournaments" };
-
-/** A tournament is done once every scheduled fixture has been recorded. */
-function isCompleted(t: TournamentOutstanding): boolean {
-  return t.totalMatches != null && t.totalMatches > 0 && t.matchCount >= t.totalMatches;
-}
 
 function TournamentCard({
   t,
@@ -132,8 +128,8 @@ export default async function TournamentsPage() {
     }),
   ]);
 
-  const active = tournaments.filter((t) => !isCompleted(t));
-  const completed = tournaments.filter(isCompleted);
+  const active = tournaments.filter((t) => !isTournamentCompleted(t));
+  const completed = tournaments.filter(isTournamentCompleted);
 
   const totalFees = tournaments.reduce((s, t) => s + t.totalFee, 0);
   const totalPaid = tournaments.reduce((s, t) => s + t.feePaid, 0);
