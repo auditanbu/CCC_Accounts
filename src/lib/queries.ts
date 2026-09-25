@@ -418,6 +418,8 @@ export type TournamentOptionRow = {
   name: string;
   overs: number;
   groundIds: number[];
+  /** The fixture number a new match against this tournament should take. */
+  nextMatchNumber: number;
 };
 
 /**
@@ -437,7 +439,7 @@ export async function getTournamentOptions(
     include: {
       // The form narrows its ground list to the venues of the chosen tournament.
       grounds: { select: { id: true } },
-      _count: { select: { matches: true } },
+      matches: { select: { matchNumber: true } },
     },
   });
 
@@ -445,14 +447,22 @@ export async function getTournamentOptions(
     .filter(
       (t) =>
         t.id === keepId ||
-        !isTournamentCompleted({ totalMatches: t.totalMatches, matchCount: t._count.matches }),
+        !isTournamentCompleted({ totalMatches: t.totalMatches, matchCount: t.matches.length }),
     )
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      overs: t.overs,
-      groundIds: t.grounds.map((g) => g.id),
-    }));
+    .map((t) => {
+      // Usually the two agree. They part company when a fixture was recorded
+      // without a number (count runs ahead) or when fixtures were entered out
+      // of order (the highest number runs ahead); the larger of the two is the
+      // one that doesn't collide with a number already taken.
+      const highest = t.matches.reduce((max, m) => Math.max(max, m.matchNumber ?? 0), 0);
+      return {
+        id: t.id,
+        name: t.name,
+        overs: t.overs,
+        groundIds: t.grounds.map((g) => g.id),
+        nextMatchNumber: Math.max(highest, t.matches.length) + 1,
+      };
+    });
 }
 
 /* ------------------------------------------------------------------ */

@@ -22,6 +22,8 @@ type TournamentOption = {
   overs?: number;
   /** Venues the tournament is played at — the ground list is narrowed to these. */
   groundIds: number[];
+  /** Fixture number suggested for a new match here. */
+  nextMatchNumber?: number;
 };
 
 export type MatchFormValues = {
@@ -74,6 +76,12 @@ export function MatchForm({
   // Local copy so a tournament created from inside this form appears in the
   // list straight away, without re-fetching and losing the entered values.
   const [options, setOptions] = useState<TournamentOption[]>(tournaments);
+  const [matchNumber, setMatchNumber] = useState<string>(
+    initial?.matchNumber != null ? String(initial.matchNumber) : "",
+  );
+  // Suggestions stop the moment the captain types their own number — and an
+  // existing match counts as typed, so editing one never renumbers it.
+  const [matchNumberEdited, setMatchNumberEdited] = useState<boolean>(initial != null);
 
   const initialDate = initial ? toDateInputValue(initial.date) : null;
   // The list is fixed for the life of the form so the selected option can't
@@ -119,11 +127,27 @@ export function MatchForm({
       ? [...narrowed, ...grounds.filter((g) => String(g.id) === groundId)]
       : narrowed;
 
-  /** Clears a ground the newly picked tournament isn't played at. */
-  function keepGroundIfPlayedThere(groundIds: number[]) {
+  /**
+   * Settles the ground against the newly picked tournament: a tournament with
+   * a single venue leaves nothing to choose, so it's filled in; otherwise a
+   * ground the tournament isn't played at is cleared.
+   */
+  function applyTournamentGrounds(groundIds: number[]) {
+    // Guarded against a venue that's since been deleted — selecting an id with
+    // no matching option would blank the select while still submitting it.
+    const only = groundIds.length === 1 ? groundIds[0] : null;
+    if (only != null && grounds.some((g) => g.id === only)) {
+      setGroundId(String(only));
+      return;
+    }
     if (groundIds.length > 0 && groundId && !groundIds.includes(Number(groundId))) {
       setGroundId("");
     }
+  }
+
+  /** Fills in the tournament's next fixture number, unless one was typed. */
+  function suggestMatchNumber(next: number | undefined) {
+    if (!matchNumberEdited) setMatchNumber(next != null ? String(next) : "");
   }
 
   const groundHint = isTournament
@@ -164,7 +188,8 @@ export function MatchForm({
               // Overs follow the tournament's format but stay editable — a
               // semi-final is occasionally played over a different number.
               if (picked?.overs) setOvers(picked.overs);
-              if (picked) keepGroundIfPlayedThere(picked.groundIds);
+              if (picked) applyTournamentGrounds(picked.groundIds);
+              suggestMatchNumber(picked?.nextMatchNumber);
             }}
             className="select flex-1"
           >
@@ -192,7 +217,9 @@ export function MatchForm({
               );
               setTournamentId(String(created.id));
               if (created.overs) setOvers(created.overs);
-              keepGroundIfPlayedThere(created.groundIds);
+              applyTournamentGrounds(created.groundIds);
+              // Nothing has been played in it yet, so this is fixture one.
+              suggestMatchNumber(created.nextMatchNumber ?? 1);
             }}
           />
         </div>
@@ -257,7 +284,11 @@ export function MatchForm({
         label="Match number"
         htmlFor="matchNumber"
         error={err.matchNumber}
-        hint="Which fixture in the tournament this is. Optional."
+        hint={
+          matchNumberEdited || !matchNumber
+            ? "Which fixture in the tournament this is. Optional."
+            : "Next fixture in this tournament — change it if this one differs."
+        }
       >
         <input
           id="matchNumber"
@@ -266,7 +297,11 @@ export function MatchForm({
           inputMode="numeric"
           min={1}
           placeholder="e.g. 3"
-          defaultValue={initial?.matchNumber ?? ""}
+          value={matchNumber}
+          onChange={(e) => {
+            setMatchNumber(e.target.value);
+            setMatchNumberEdited(true);
+          }}
           className="input"
         />
       </Field>
