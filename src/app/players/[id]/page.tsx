@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { deletePlayerAction, togglePlayerStatusAction } from "@/app/actions/players";
+import { ResultBadge } from "@/components/MatchCard";
 import { EditPlayerForm } from "@/components/PlayerForm";
-import { UpiPayButton } from "@/components/UpiPayButton";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { ConfirmSubmit, SubmitButton } from "@/components/ui/Form";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/Icons";
@@ -154,11 +154,6 @@ export default async function PlayerDetailPage({
           </p>
         </div>
 
-        {pending > 0 ? (
-          <div className="border-t border-separator/70 px-4 py-3.5">
-            <UpiPayButton />
-          </div>
-        ) : null}
       </div>
 
       <Section title={`Match history · ${appearances.length}`}>
@@ -172,8 +167,19 @@ export default async function PlayerDetailPage({
                 <li key={r.id}>
                   <Link href={`/matches/${r.matchId}`} className="list-row-link">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-medium">
-                        vs {r.match.opponentTeam}
+                      <span className="flex items-center gap-1.5">
+                        {/* Ahead of the name, which truncates — the result
+                            would be the first thing lost otherwise. */}
+                        {r.match.result ? (
+                          <ResultBadge result={r.match.result} />
+                        ) : (
+                          <span className="badge shrink-0 bg-black/[0.05] text-label-tertiary">
+                            No result
+                          </span>
+                        )}
+                        <span className="truncate text-[15px] font-medium">
+                          vs {r.match.opponentTeam}
+                        </span>
                       </span>
                       <span className="block truncate text-[12px] text-label-secondary">
                         {formatDate(r.match.date)} · {r.match.ground.name}

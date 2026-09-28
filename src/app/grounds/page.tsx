@@ -1,22 +1,16 @@
 import type { Metadata } from "next";
 
-import { AddGroundForm, EditGroundButton } from "@/components/GroundForms";
+import { GroundList } from "@/app/grounds/GroundList";
+import { AddGroundForm } from "@/components/GroundForms";
 import { EmptyState, Section } from "@/components/ui/Card";
-import { PinIcon, StadiumIcon } from "@/components/ui/Icons";
-import { prisma } from "@/lib/prisma";
+import { getGroundsWithMatches } from "@/lib/queries";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Grounds" };
 
 export default async function GroundsPage() {
-  const [grounds, admin] = await Promise.all([
-    prisma.ground.findMany({
-      orderBy: { name: "asc" },
-      include: { _count: { select: { matches: true } } },
-    }),
-    isAdmin(),
-  ]);
+  const [grounds, admin] = await Promise.all([getGroundsWithMatches(), isAdmin()]);
 
   return (
     <div className="space-y-7">
@@ -41,44 +35,7 @@ export default async function GroundsPage() {
             }
           />
         ) : (
-          <ul className="list-group">
-            {grounds.map((g) => (
-              <li key={g.id} className="list-row">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ios-green/10 text-ios-green">
-                  <StadiumIcon width={20} height={20} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-medium">{g.name}</span>
-                  <span className="block truncate text-[12px] text-label-secondary">
-                    {g.location ?? "No location set"} · {g._count.matches} match
-                    {g._count.matches === 1 ? "" : "es"}
-                  </span>
-                  {g.googleMapUrl ? (
-                    <a
-                      href={g.googleMapUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-medium text-ios-blue"
-                    >
-                      <PinIcon width={12} height={12} strokeWidth={2} />
-                      Directions
-                    </a>
-                  ) : null}
-                </span>
-                {admin ? (
-                  <EditGroundButton
-                    ground={{
-                      id: g.id,
-                      name: g.name,
-                      location: g.location,
-                      googleMapUrl: g.googleMapUrl,
-                    }}
-                    matchCount={g._count.matches}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <GroundList grounds={grounds} admin={admin} />
         )}
       </Section>
     </div>
