@@ -446,12 +446,28 @@ export function RosterEditor({
                 const d = drafts[row.playerId]!;
                 const pending = d.collected === "" || num(d.collected) <= 0;
                 const modeLabel = pending ? "Pending" : d.mode === "CASH" ? "Cash" : "UPI";
+                // Saved balance, moved by whatever is being typed in right now
+                // so the figure reflects this entry before it's saved.
+                const outstanding = round2(
+                  row.outstanding +
+                    ((d.present ? num(d.payable) : 0) - (row.isPresent ? row.payableAmount : 0)) -
+                    (num(d.collected) - row.collectedAmount),
+                );
                 return (
                   <li key={row.playerId} className="px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
-                        {row.name}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-medium">{row.name}</span>
+                        <span
+                          className={`tnum block text-[12px] ${
+                            outstanding > 0 ? "text-ios-orange" : "text-[#248A3D]"
+                          }`}
+                        >
+                          {outstanding < 0
+                            ? `${formatMoney(-outstanding)} credit`
+                            : `${formatMoney(outstanding)} outstanding`}
+                        </span>
                       </span>
                       <input
                         type="number"
