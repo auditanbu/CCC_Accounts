@@ -72,6 +72,7 @@ export default async function MatchDetailPage({
     ...activePlayers,
     ...match.players.filter((mp) => mp.player.status !== "ACTIVE").map((mp) => mp.player),
   ];
+  const pendingById = new Map(playerPendings.map((pp) => [pp.id, pp.pending]));
   const seen = new Set<number>();
   const rosterRows: RosterRow[] = candidates
     .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
@@ -91,6 +92,7 @@ export default async function MatchDetailPage({
         // there's no dedicated paidAt field, so this is when the row was
         // last saved.
         collectedAt: mp?.updatedAt ? mp.updatedAt.toISOString() : null,
+        outstanding: pendingById.get(p.id) ?? 0,
       };
     });
 

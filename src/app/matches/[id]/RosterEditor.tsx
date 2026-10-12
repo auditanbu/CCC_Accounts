@@ -21,6 +21,9 @@ export type RosterRow = {
   /** When this collection entry was last saved — the closest thing on file
    * to a "paid on" date. */
   collectedAt: string | null;
+  /** The player's overall balance across every match (plus any opening
+   * balance). Negative means the player is in credit. */
+  outstanding: number;
 };
 
 type Draft = {
@@ -63,6 +66,26 @@ function StatusBadge({ payable, collected }: { payable: number; collected: numbe
     );
   }
   return <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">₹0 due</span>;
+}
+
+/** The player's running balance across all matches, rather than just this
+ * match's paid/due figure. */
+function OutstandingBadge({ outstanding }: { outstanding: number }) {
+  if (outstanding > 0) {
+    return (
+      <span className="badge shrink-0 bg-ios-orange/12 text-ios-orange">
+        {formatMoney(outstanding)} outstanding
+      </span>
+    );
+  }
+  if (outstanding < 0) {
+    return (
+      <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">
+        {formatMoney(-outstanding)} credit
+      </span>
+    );
+  }
+  return <span className="badge shrink-0 bg-ios-green/12 text-[#248A3D]">₹0 outstanding</span>;
 }
 
 function Avatar({
@@ -171,6 +194,7 @@ export function RosterEditor({
         collectedAmount: 0,
         paymentMode: null,
         collectedAt: null,
+        outstanding: 0,
       },
     ]);
     // Adding them here means putting them on this match sheet — check them
@@ -402,7 +426,7 @@ export function RosterEditor({
                           / {formatMoney(row.payableAmount)}
                         </span>
                       </span>
-                      <StatusBadge payable={row.payableAmount} collected={row.collectedAmount} />
+                      <OutstandingBadge outstanding={row.outstanding} />
                     </span>
                   </li>
                 );
@@ -422,12 +446,28 @@ export function RosterEditor({
                 const d = drafts[row.playerId]!;
                 const pending = d.collected === "" || num(d.collected) <= 0;
                 const modeLabel = pending ? "Pending" : d.mode === "CASH" ? "Cash" : "UPI";
+                // Saved balance, moved by whatever is being typed in right now
+                // so the figure reflects this entry before it's saved.
+                const outstanding = round2(
+                  row.outstanding +
+                    ((d.present ? num(d.payable) : 0) - (row.isPresent ? row.payableAmount : 0)) -
+                    (num(d.collected) - row.collectedAmount),
+                );
                 return (
                   <li key={row.playerId} className="px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
-                        {row.name}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-medium">{row.name}</span>
+                        <span
+                          className={`tnum block text-[12px] ${
+                            outstanding > 0 ? "text-ios-orange" : "text-[#248A3D]"
+                          }`}
+                        >
+                          {outstanding < 0
+                            ? `${formatMoney(-outstanding)} credit`
+                            : `${formatMoney(outstanding)} outstanding`}
+                        </span>
                       </span>
                       <input
                         type="number"
