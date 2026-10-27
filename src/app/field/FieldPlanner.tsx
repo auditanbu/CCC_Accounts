@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { Sheet } from "@/components/ui/Sheet";
-import { CheckIcon, DownloadIcon, ShareIcon } from "@/components/ui/Icons";
+import { CheckIcon, ChevronRightIcon, DownloadIcon, ShareIcon } from "@/components/ui/Icons";
 import { cn } from "@/lib/cn";
 import { TEAM_NAME } from "@/lib/constants";
 import {
@@ -33,6 +33,7 @@ import {
   type Point,
 } from "@/lib/fielding";
 import { avatarLabel, formatDate } from "@/lib/format";
+import { jpegToPdf } from "@/lib/pdf";
 
 export type SquadPlayer = { id: number; name: string; jerseyNumber: number | null };
 
@@ -241,6 +242,7 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null);
@@ -347,6 +349,15 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   }
 
   const bowlerId = markers.find((m) => m.role === "bowler")?.playerId ?? null;
+  const bowlerName = bowlerId !== null ? playerById.get(bowlerId)?.name : undefined;
+  // What the folded settings card shows, so the choices are visible closed.
+  const summary = [
+    phaseLabel(phase, overs),
+    `${hand === "RHB" ? "Right" : "Left"}-hand`,
+    bowlerName ? `Bowler: ${bowlerName}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const editingMarker = markers.find((m) => m.id === editing) ?? null;
   const items = markers.map((m) => ({
@@ -364,114 +375,137 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="card-pad space-y-3">
-        <div>
-          <label htmlFor="field-title" className="label">
-            Title
-          </label>
-          <input
-            id="field-title"
-            className="input"
-            placeholder="e.g. Death overs vs Royal XI"
-            value={title}
-            maxLength={60}
-            onChange={(e) => update({ title: e.target.value })}
+      <div className="card">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((o) => !o)}
+          aria-expanded={settingsOpen}
+          aria-controls="field-settings"
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left sm:px-5"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-semibold">{title || "Field settings"}</span>
+            <span className="block truncate text-[12px] text-label-secondary">{summary}</span>
+          </span>
+          <ChevronRightIcon
+            className={cn(
+              "shrink-0 text-label-tertiary transition-transform duration-200",
+              settingsOpen && "rotate-90",
+            )}
           />
-        </div>
+        </button>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="field-bowler" className="label">
-              Bowler
-            </label>
-            <select
-              id="field-bowler"
-              className="select"
-              value={bowlerId ?? ""}
-              onChange={(e) => assign("B", e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">Not set</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="field-overs" className="label">
-              Match
-            </label>
-            <select
-              id="field-overs"
-              className="select"
-              value={overs}
-              onChange={(e) => update({ overs: Number(e.target.value) as MatchOvers })}
-            >
-              {MATCH_OVERS.map((o) => (
-                <option key={o} value={o}>
-                  {o} overs
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {settingsOpen ? (
+          <div id="field-settings" className="space-y-3 border-t border-separator/70 px-4 pb-4 pt-3 sm:px-5">
+            <div>
+              <label htmlFor="field-title" className="label">
+                Title
+              </label>
+              <input
+                id="field-title"
+                className="input"
+                placeholder="e.g. Death overs vs Royal XI"
+                value={title}
+                maxLength={60}
+                onChange={(e) => update({ title: e.target.value })}
+              />
+            </div>
 
-        <div>
-          <span className="label">Over range · Overs {overRange(phase, overs).join("–")}</span>
-          <Segmented
-            label="Over range"
-            value={phase}
-            options={PHASES.map((p) => ({ value: p.id, label: p.short }))}
-            onChange={(v) => update({ phase: v })}
-          />
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="field-bowler" className="label">
+                  Bowler
+                </label>
+                <select
+                  id="field-bowler"
+                  className="select"
+                  value={bowlerId ?? ""}
+                  onChange={(e) => assign("B", e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Not set</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="field-overs" className="label">
+                  Match
+                </label>
+                <select
+                  id="field-overs"
+                  className="select"
+                  value={overs}
+                  onChange={(e) => update({ overs: Number(e.target.value) as MatchOvers })}
+                >
+                  {MATCH_OVERS.map((o) => (
+                    <option key={o} value={o}>
+                      {o} overs
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <span className="label">Batter</span>
-            <Segmented
-              label="Batter"
-              value={hand}
-              options={[
-                { value: "RHB", label: "Right" },
-                { value: "LHB", label: "Left" },
-              ]}
-              onChange={changeHand}
-            />
-          </div>
-          <div>
-            <label htmlFor="field-preset" className="label">
-              Preset
-            </label>
-            <select
-              id="field-preset"
-              className="select"
-              value={presetId}
-              onChange={(e) => applyPreset(e.target.value)}
-            >
-              <option value="">Custom</option>
-              {PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+            <div>
+              <span className="label">Over range · Overs {overRange(phase, overs).join("–")}</span>
+              <Segmented
+                label="Over range"
+                value={phase}
+                options={PHASES.map((p) => ({ value: p.id, label: p.short }))}
+                onChange={(v) => update({ phase: v })}
+              />
+            </div>
 
-        <div>
-          <span className="label">Dots show</span>
-          <Segmented
-            label="Dots show"
-            value={labelMode}
-            options={[
-              { value: "name", label: "Name" },
-              { value: "jersey", label: "Jersey no." },
-            ]}
-            onChange={(v) => update({ labelMode: v })}
-          />
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="label">Batter</span>
+                <Segmented
+                  label="Batter"
+                  value={hand}
+                  options={[
+                    { value: "RHB", label: "Right" },
+                    { value: "LHB", label: "Left" },
+                  ]}
+                  onChange={changeHand}
+                />
+              </div>
+              <div>
+                <label htmlFor="field-preset" className="label">
+                  Preset
+                </label>
+                <select
+                  id="field-preset"
+                  className="select"
+                  value={presetId}
+                  onChange={(e) => applyPreset(e.target.value)}
+                >
+                  <option value="">Custom</option>
+                  {PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <span className="label">Dots show</span>
+              <Segmented
+                label="Dots show"
+                value={labelMode}
+                options={[
+                  { value: "name", label: "Name" },
+                  { value: "jersey", label: "Jersey no." },
+                ]}
+                onChange={(v) => update({ labelMode: v })}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-[#2f6f2c] shadow-card">
@@ -749,6 +783,10 @@ function MarkerView({
 }
 
 type ExportStatus = "idle" | "working" | "retry" | "done" | "error";
+type ExportKind = "png" | "pdf";
+
+/** The PDF page, in points: 9:16 like the image, 7.5 × 13.3 inches. */
+const PDF_PAGE = { width: 540, height: 960 };
 
 /**
  * Turns the ground into a 1080px-wide PNG with a header and a key, then hands
@@ -785,13 +823,18 @@ function ExportButtons({
     setStatus((s) => (s === "retry" ? "idle" : s));
   }, [settings, markers]);
 
-  const fileName = `field-set${title ? `-${title.trim().replace(/[^a-z0-9]+/gi, "-").toLowerCase()}` : ""}.png`;
+  const baseName = `field-set${title ? `-${title.trim().replace(/[^a-z0-9]+/gi, "-").toLowerCase()}` : ""}`;
 
-  async function makeFile(): Promise<File> {
+  async function makeFile(kind: ExportKind = "png"): Promise<File> {
     const svg = svgRef.current;
     if (!svg) throw new Error("ground not rendered");
-    const blob = await renderPng(svg, settings, markers, playerById);
-    return new File([blob], fileName, { type: "image/png" });
+    const canvas = await renderCanvas(svg, settings, markers, playerById);
+    if (kind === "png") {
+      return new File([await canvasBlob(canvas, "image/png")], `${baseName}.png`, { type: "image/png" });
+    }
+    const jpeg = new Uint8Array(await (await canvasBlob(canvas, "image/jpeg", 0.92)).arrayBuffer());
+    const pdf = jpegToPdf(jpeg, canvas, PDF_PAGE);
+    return new File([pdf], `${baseName}.pdf`, { type: "application/pdf" });
   }
 
   async function share() {
@@ -820,10 +863,10 @@ function ExportButtons({
     }
   }
 
-  async function save() {
+  async function save(kind: ExportKind) {
     setStatus("working");
     try {
-      const file = await makeFile();
+      const file = await makeFile(kind);
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
@@ -840,44 +883,60 @@ function ExportButtons({
 
   return (
     <div className="space-y-2">
+      {canShareFiles ? (
+        <button type="button" onClick={share} disabled={status === "working"} className="btn-primary w-full">
+          <ShareIcon width={17} height={17} />
+          {status === "retry" ? "Tap again to share" : "Share image"}
+        </button>
+      ) : null}
       <div className="flex gap-2">
-        {canShareFiles ? (
-          <button type="button" onClick={share} disabled={status === "working"} className="btn-primary flex-1">
-            <ShareIcon width={17} height={17} />
-            {status === "retry" ? "Tap again to share" : "Share image"}
-          </button>
-        ) : null}
         <button
           type="button"
-          onClick={save}
+          onClick={() => save("png")}
           disabled={status === "working"}
-          className={cn(canShareFiles ? "btn-secondary" : "btn-primary flex-1")}
+          className={cn("flex-1", canShareFiles ? "btn-secondary" : "btn-primary")}
         >
           <DownloadIcon width={17} height={17} />
           Save image
         </button>
+        <button
+          type="button"
+          onClick={() => save("pdf")}
+          disabled={status === "working"}
+          className="btn-secondary flex-1"
+        >
+          <DownloadIcon width={17} height={17} />
+          Save PDF
+        </button>
       </div>
       {status === "error" ? (
         <p role="alert" className="text-[13px] font-medium text-ios-red">
-          Couldn&apos;t create the image — please try again.
+          Couldn&apos;t create the file — please try again.
         </p>
       ) : (
         <p className="px-1 text-[12px] text-label-secondary">
           {canShareFiles
             ? "Share opens WhatsApp or “Save Image” to put it in your Photos."
-            : "Downloads a PNG you can send on WhatsApp."}
+            : "Downloads a PNG or PDF you can send on WhatsApp."}
         </p>
       )}
     </div>
   );
 }
 
-async function renderPng(
+function canvasBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), type, quality),
+  );
+}
+
+/** Draws the shareable page — heading, ground and key — onto a canvas. */
+async function renderCanvas(
   ground: SVGSVGElement,
   { title, hand, phase, overs, labelMode }: Settings,
   markers: Marker[],
   playerById: Map<number, SquadPlayer>,
-): Promise<Blob> {
+): Promise<HTMLCanvasElement> {
   // 9:16, so it fills a phone screen and a WhatsApp status.
   const W = 1080;
   const H = 1920;
@@ -937,8 +996,5 @@ async function renderPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no canvas");
   ctx.drawImage(img, 0, 0, W, H);
-
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png"),
-  );
+  return canvas;
 }
