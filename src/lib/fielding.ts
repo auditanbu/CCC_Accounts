@@ -275,3 +275,6 @@ export function phaseLabel(phase: Phase, overs: MatchOvers): string {
   const name = PHASES.find((p) => p.id === phase)?.label ?? "";
   return `${name} · Overs ${from}–${to}`;
 }
+
+/** How many field sets one phone may save. The admin has no limit. */
+export const FIELD_SETS_PER_PHONE = 5;
