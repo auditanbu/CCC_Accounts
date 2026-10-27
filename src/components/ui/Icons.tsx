@@ -104,6 +104,13 @@ export const ShareIcon = (p: IconProps) => (
   </Base>
 );
 
+export const DownloadIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3.6v11.8M8.4 11.8 12 15.4l3.6-3.6" />
+    <path d="M5.6 15.6v2.8a2 2 0 0 0 2 2h8.8a2 2 0 0 0 2-2v-2.8" />
+  </Base>
+);
+
 export const CheckIcon = (p: IconProps) => (
   <Base strokeWidth={2.4} {...p}>
     <path d="m5 12.8 4.4 4.4L19 7.6" />
