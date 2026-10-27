@@ -3,10 +3,10 @@
  * position naming can be reasoned about (and reused for the shared image) on
  * its own.
  *
- * The ground is drawn in a 1000×1000 SVG viewBox from the wicket-keeper's
- * point of view: the striker is at the bottom of the pitch facing up towards
- * the bowler. For a right-hander that puts the off side on the right of the
- * screen and the leg side on the left; a left-hander is the mirror image.
+ * The ground is drawn in a 1000×1000 SVG viewBox from behind the bowler, the
+ * TV view: the striker and keeper are at the top, the bowler runs in from the
+ * bottom. For a right-hander that puts the off side on the left of the screen
+ * and the leg side on the right; a left-hander is the mirror image.
  */
 
 export type Hand = "RHB" | "LHB";
@@ -17,8 +17,11 @@ export const CENTER = VIEW / 2;
 export const BOUNDARY_R = 470;
 /** Half the 22-yard pitch, in the same scale as the boundary. */
 const HALF_PITCH = 80;
-export const STRIKER_Y = CENTER + HALF_PITCH;
-export const BOWLER_END_Y = CENTER - HALF_PITCH;
+export const STRIKER_Y = CENTER - HALF_PITCH;
+export const BOWLER_END_Y = CENTER + HALF_PITCH;
+/** The two ends of the pitch, top and bottom of the screen. */
+export const PITCH_TOP_Y = Math.min(STRIKER_Y, BOWLER_END_Y);
+export const PITCH_BOTTOM_Y = Math.max(STRIKER_Y, BOWLER_END_Y);
 /** The 30-yard circle: semicircles of this radius around each set of stumps. */
 export const RING_R = 217;
 
@@ -85,8 +88,15 @@ const RAD = Math.PI / 180;
 
 /** +1 when the off side is on the right of the screen, −1 when it's on the left. */
 function offSign(hand: Hand): number {
-  return hand === "RHB" ? 1 : -1;
+  return hand === "RHB" ? -1 : 1;
 }
+
+export function offSideOnRight(hand: Hand): boolean {
+  return offSign(hand) > 0;
+}
+
+/** +1 when the bowler is below the striker on screen (straight is down). */
+const STRAIGHT_SIGN = Math.sign(BOWLER_END_Y - STRIKER_Y);
 
 /** Distance from the striker's stumps to the rope along a screen direction. */
 function ropeDistance(ux: number, uy: number): number {
@@ -104,14 +114,14 @@ export function toPolar(p: Point, hand: Hand): { angle: number; r: number } {
   const dy = p.y - STRIKER_Y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) return { angle: 0, r: 0 };
-  const angle = Math.atan2(dx * offSign(hand), -dy) / RAD;
+  const angle = Math.atan2(dx * offSign(hand), dy * STRAIGHT_SIGN) / RAD;
   return { angle, r: len / ropeDistance(dx / len, dy / len) };
 }
 
 /** Angle/distance → screen point. Inverse of {@link toPolar}. */
 export function fromPolar(angle: number, r: number, hand: Hand): Point {
   const ux = Math.sin(angle * RAD) * offSign(hand);
-  const uy = -Math.cos(angle * RAD);
+  const uy = Math.cos(angle * RAD) * STRAIGHT_SIGN;
   const d = r * ropeDistance(ux, uy);
   return { x: CENTER + ux * d, y: STRIKER_Y + uy * d };
 }
@@ -153,7 +163,7 @@ export function sideOf(p: Point, hand: Hand): Side {
 
 /** Inside the 30-yard circle: within RING_R of the line between the stumps. */
 export function insideRing(p: Point): boolean {
-  const y = Math.min(Math.max(p.y, BOWLER_END_Y), STRIKER_Y);
+  const y = Math.min(Math.max(p.y, PITCH_TOP_Y), PITCH_BOTTOM_Y);
   return Math.hypot(p.x - CENTER, p.y - y) <= RING_R;
 }
 
@@ -178,8 +188,8 @@ export function positionPoint(name: string, hand: Hand): Point {
   return fromPolar(pos.angle, pos.r, hand);
 }
 
-export const BOWLER_HOME: Point = { x: CENTER, y: BOWLER_END_Y - 30 };
-export const KEEPER_HOME: Point = { x: CENTER, y: STRIKER_Y + 75 };
+export const BOWLER_HOME: Point = { x: CENTER, y: BOWLER_END_Y + 30 * STRAIGHT_SIGN };
+export const KEEPER_HOME: Point = { x: CENTER, y: STRIKER_Y - 75 * STRAIGHT_SIGN };
 
 export type Preset = { id: string; label: string; positions: string[] };
 

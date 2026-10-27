@@ -8,19 +8,20 @@ import { cn } from "@/lib/cn";
 import { TEAM_NAME } from "@/lib/constants";
 import {
   BOUNDARY_R,
-  BOWLER_END_Y,
   BOWLER_HOME,
   CENTER,
   KEEPER_HOME,
   MATCH_OVERS,
   PHASES,
   PRESETS,
+  PITCH_BOTTOM_Y,
+  PITCH_TOP_Y,
   RING_R,
-  STRIKER_Y,
   VIEW,
   behindSquareLeg,
   clampToGround,
   insideRing,
+  offSideOnRight,
   overRange,
   phaseLabel,
   positionName,
@@ -64,7 +65,11 @@ const DEFAULT_SETTINGS: Settings = {
   overs: 30,
 };
 
-type Saved = Settings & { markers: Marker[] };
+/** `v` 2 is the bowler-at-the-bottom ground; older layouts were drawn the
+ * other way up. */
+type Saved = Settings & { markers: Marker[]; v?: number };
+
+const SAVED_VERSION = 2;
 
 const STORAGE_KEY = "field-set:v1";
 const DEFAULT_PRESET = PRESETS[0];
@@ -136,6 +141,8 @@ function loadSaved(players: SquadPlayer[]): Saved | null {
       overs: MATCH_OVERS.includes(data.overs as MatchOvers) ? (data.overs as MatchOvers) : DEFAULT_SETTINGS.overs,
       markers: data.markers.map((m) => ({
         ...m,
+        // Turning an old layout round keeps every fielder's position name.
+        ...(data.v === SAVED_VERSION ? {} : { x: VIEW - m.x, y: VIEW - m.y }),
         // A player removed from the squad since is simply unassigned.
         playerId: m.playerId !== null && known.has(m.playerId) ? m.playerId : null,
       })),
@@ -254,7 +261,7 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   useEffect(() => {
     if (!loaded) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, markers } satisfies Saved));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, markers, v: SAVED_VERSION } satisfies Saved));
     } catch {
       // Private mode or storage full — the planner still works, it just
       // won't remember this layout next time.
@@ -658,10 +665,10 @@ function Ground({ hand }: { hand: Hand }) {
     }
   }
   const ring =
-    `M ${CENTER - RING_R} ${STRIKER_Y} L ${CENTER - RING_R} ${BOWLER_END_Y} ` +
-    `A ${RING_R} ${RING_R} 0 0 1 ${CENTER + RING_R} ${BOWLER_END_Y} ` +
-    `L ${CENTER + RING_R} ${STRIKER_Y} A ${RING_R} ${RING_R} 0 0 1 ${CENTER - RING_R} ${STRIKER_Y} Z`;
-  const offX = hand === "RHB" ? VIEW - 70 : 70;
+    `M ${CENTER - RING_R} ${PITCH_BOTTOM_Y} L ${CENTER - RING_R} ${PITCH_TOP_Y} ` +
+    `A ${RING_R} ${RING_R} 0 0 1 ${CENTER + RING_R} ${PITCH_TOP_Y} ` +
+    `L ${CENTER + RING_R} ${PITCH_BOTTOM_Y} A ${RING_R} ${RING_R} 0 0 1 ${CENTER - RING_R} ${PITCH_BOTTOM_Y} Z`;
+  const offX = offSideOnRight(hand) ? VIEW - 70 : 70;
   const legX = VIEW - offX;
   const pitchW = 44;
 
@@ -677,13 +684,13 @@ function Ground({ hand }: { hand: Hand }) {
       <path d={ring} fill="none" stroke="#ffffff" strokeOpacity={0.75} strokeWidth={3} strokeDasharray="14 12" />
       <rect
         x={CENTER - pitchW / 2}
-        y={BOWLER_END_Y - 18}
+        y={PITCH_TOP_Y - 18}
         width={pitchW}
-        height={STRIKER_Y - BOWLER_END_Y + 36}
+        height={PITCH_BOTTOM_Y - PITCH_TOP_Y + 36}
         rx={4}
         fill="#d9c48f"
       />
-      {[BOWLER_END_Y, STRIKER_Y].map((y) => (
+      {[PITCH_TOP_Y, PITCH_BOTTOM_Y].map((y) => (
         <g key={y}>
           <line x1={CENTER - pitchW / 2 - 6} x2={CENTER + pitchW / 2 + 6} y1={y} y2={y} stroke="#ffffff" strokeWidth={2} />
           <rect x={CENTER - 7} y={y - 2} width={14} height={4} fill="#7a4b21" />
@@ -871,12 +878,12 @@ async function renderPng(
   markers: Marker[],
   playerById: Map<number, SquadPlayer>,
 ): Promise<Blob> {
+  // 9:16, so it fills a phone screen and a WhatsApp status.
   const W = 1080;
-  const groundTop = 210;
-  const keyTop = groundTop + VIEW + 30;
-  const rowH = 36;
-  const rows = Math.ceil(markers.length / 2);
-  const H = keyTop + 40 + rows * rowH + 40;
+  const H = 1920;
+  const groundTop = 230;
+  const keyTop = groundTop + VIEW + 60;
+  const rowH = 50;
 
   const serializer = new XMLSerializer();
   const groundMarkup = Array.from(ground.childNodes)
@@ -889,21 +896,19 @@ async function renderPng(
   const sub = `${hand === "RHB" ? "Right" : "Left"}-hand batter · ${overs}-over match · ${formatDate(new Date())}`;
   const key = markers
     .map((m, i) => {
-      const col = i < rows ? 0 : 1;
-      const row = i < rows ? i : i - rows;
-      const x = 60 + col * 500;
-      const y = keyTop + 40 + row * rowH;
+      const x = 60;
+      const y = keyTop + 55 + i * rowH;
       const player = m.playerId !== null ? playerById.get(m.playerId) : undefined;
       // The key always names the player, whichever way the dots are showing.
       const who = player
         ? `${player.name}${player.jerseyNumber !== null ? ` (#${player.jerseyNumber})` : ""}`
         : "";
       const dot = dotText(m, player, labelMode);
-      const dotSize = Math.round(dotFontSize(dot) * 0.72);
+      const dotSize = Math.round(dotFontSize(dot) * 0.85);
       return (
-        `<circle cx="${x + 14}" cy="${y - 8}" r="14" fill="${COLORS[m.role]}"/>` +
-        `<text x="${x + 14}" y="${y - 8 + dotSize * 0.35}" text-anchor="middle" font-size="${dotSize}" font-weight="700" fill="#fff">${escapeXml(dot)}</text>` +
-        `<text x="${x + 38}" y="${y}" font-size="23" fill="#1c1c1e"><tspan font-weight="700">${escapeXml(markerPosition(m, hand))}</tspan>` +
+        `<circle cx="${x + 17}" cy="${y - 9}" r="17" fill="${COLORS[m.role]}"/>` +
+        `<text x="${x + 17}" y="${y - 9 + dotSize * 0.35}" text-anchor="middle" font-size="${dotSize}" font-weight="700" fill="#fff">${escapeXml(dot)}</text>` +
+        `<text x="${x + 48}" y="${y}" font-size="28" fill="#1c1c1e"><tspan font-weight="700">${escapeXml(markerPosition(m, hand))}</tspan>` +
         (who ? `<tspan fill="#6e6e73"> — ${escapeXml(who)}</tspan>` : "") +
         `</text>`
       );
@@ -913,12 +918,12 @@ async function renderPng(
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${FONT}">` +
     `<rect width="${W}" height="${H}" fill="#F2F2F7"/>` +
-    `<text x="40" y="58" font-size="26" font-weight="600" fill="#6e6e73">${escapeXml(TEAM_NAME)}</text>` +
-    `<text x="40" y="112" font-size="44" font-weight="800" fill="#1c1c1e">${escapeXml(title || "Field set")}</text>` +
-    `<text x="40" y="152" font-size="26" font-weight="700" fill="#0A84FF">${escapeXml(phaseLine)}</text>` +
-    `<text x="40" y="188" font-size="23" fill="#6e6e73">${escapeXml(sub)}</text>` +
+    `<text x="40" y="62" font-size="28" font-weight="600" fill="#6e6e73">${escapeXml(TEAM_NAME)}</text>` +
+    `<text x="40" y="120" font-size="48" font-weight="800" fill="#1c1c1e">${escapeXml(title || "Field set")}</text>` +
+    `<text x="40" y="164" font-size="28" font-weight="700" fill="#0A84FF">${escapeXml(phaseLine)}</text>` +
+    `<text x="40" y="202" font-size="25" fill="#6e6e73">${escapeXml(sub)}</text>` +
     `<svg x="40" y="${groundTop}" width="${VIEW}" height="${VIEW}" viewBox="0 0 ${VIEW} ${VIEW}">${groundMarkup}</svg>` +
-    `<text x="40" y="${keyTop + 6}" font-size="22" font-weight="700" fill="#6e6e73" letter-spacing="1.5">FIELD</text>` +
+    `<text x="40" y="${keyTop + 6}" font-size="24" font-weight="700" fill="#6e6e73" letter-spacing="1.5">FIELD</text>` +
     key +
     `</svg>`;
 
