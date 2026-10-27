@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { ensureDeviceId, getDeviceId } from "@/lib/device";
-import { FIELD_SETS_PER_PHONE } from "@/lib/fielding";
+import { FIELD_SETS_PER_PHONE, VIEW_H, VIEW_W } from "@/lib/fielding";
 import { isAdmin } from "@/lib/session";
 import { type ActionState, runAction } from "@/app/actions/types";
 
@@ -13,13 +13,12 @@ import { type ActionState, runAction } from "@/app/actions/types";
 const MAX_PLAYER_FIELD_SETS = 300;
 
 const MARKER_IDS = ["WK", "B", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-const coord = z.number().finite().min(0).max(1000);
 
 const markerSchema = z.object({
   id: z.string().refine((v) => MARKER_IDS.includes(v), "Unknown marker."),
   role: z.enum(["keeper", "bowler", "fielder"]),
-  x: coord,
-  y: coord,
+  x: z.number().finite().min(0).max(VIEW_W),
+  y: z.number().finite().min(0).max(VIEW_H),
   playerId: z.number().int().positive().nullable(),
 });
 
