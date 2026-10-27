@@ -3,7 +3,7 @@ import Link from "next/link";
 import { MatchCard } from "@/components/MatchCard";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { Money, StatCard } from "@/components/ui/Money";
-import { ChevronRightIcon, PlusIcon } from "@/components/ui/Icons";
+import { ChevronRightIcon, CricketIcon, PlusIcon } from "@/components/ui/Icons";
 import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
 import { avatarLabel, formatDate, formatMoney, formatTime } from "@/lib/format";
 import {
@@ -94,6 +94,19 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : null}
+
+      <Link href="/field" className="card flex items-center gap-3 px-4 py-3.5 active:bg-black/[0.035] sm:hover:bg-black/[0.025]">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ios-green/12 text-ios-green">
+          <CricketIcon width={22} height={22} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold">Field set planner</span>
+          <span className="block text-[12px] text-label-secondary">
+            Place your fielders and share the field on WhatsApp
+          </span>
+        </span>
+        <ChevronRightIcon className="shrink-0 text-label-tertiary" />
+      </Link>
 
       {/* Pendings */}
       <Section
