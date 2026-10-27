@@ -22,12 +22,18 @@ import {
   MATCH_OVERS,
   PHASES,
   PRESETS,
+  CIRCLE_TRANSFORM,
   PITCH_BOTTOM_Y,
   PITCH_TOP_Y,
   RING_R,
-  VIEW,
+  ROPE_RX,
+  ROPE_RY,
+  SCREEN_CY,
+  VIEW_H,
+  VIEW_W,
   behindSquareLeg,
   clampToGround,
+  fromRoundCanvas,
   insideRing,
   offSideOnRight,
   overRange,
@@ -74,11 +80,11 @@ const DEFAULT_SETTINGS: Settings = {
   overs: 30,
 };
 
-/** `v` 2 is the bowler-at-the-bottom ground; older layouts were drawn the
- * other way up. */
+/** `v` 3 is the oval ground. 2 was the same view on a round, square canvas;
+ * older layouts were drawn the other way up as well. */
 type Saved = Settings & { markers: Marker[]; v?: number };
 
-const SAVED_VERSION = 2;
+const SAVED_VERSION = 3;
 
 const STORAGE_KEY = "field-set:v1";
 const DEFAULT_PRESET = PRESETS[0];
@@ -94,12 +100,42 @@ const COLORS: Record<Role, string> = {
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
 
+/** The visible window onto the ground: magnification and its centre. */
+type Zoom = { s: number; cx: number; cy: number };
+const FIT: Zoom = { s: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
+const MAX_ZOOM = 4;
+
+/** Keeps the window inside the ground at a magnification from 1 to 4. */
+function clampZoom({ s, cx, cy }: Zoom): Zoom {
+  const scale = Math.min(Math.max(s, 1), MAX_ZOOM);
+  const w = VIEW_W / scale;
+  const h = VIEW_H / scale;
+  return {
+    s: scale,
+    cx: Math.min(Math.max(cx, w / 2), VIEW_W - w / 2),
+    cy: Math.min(Math.max(cy, h / 2), VIEW_H - h / 2),
+  };
+}
+
+/** Zooms by `factor` while keeping the ground point `anchor` where it is on screen. */
+function zoomAround(z: Zoom, factor: number, anchor: Point): Zoom {
+  const s = Math.min(Math.max(z.s * factor, 1), MAX_ZOOM);
+  const k = z.s / s;
+  return clampZoom({ s, cx: anchor.x - (anchor.x - z.cx) * k, cy: anchor.y - (anchor.y - z.cy) * k });
+}
+
+function viewBoxOf({ s, cx, cy }: Zoom): string {
+  const w = VIEW_W / s;
+  const h = VIEW_H / s;
+  return `${cx - w / 2} ${cy - h / 2} ${w} ${h}`;
+}
+
 function leaveBrowserFullScreen() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
 
 function mirror(p: Point): Point {
-  return { x: VIEW - p.x, y: p.y };
+  return { x: VIEW_W - p.x, y: p.y };
 }
 
 function presetMarkers(presetId: string, hand: Hand, previous?: Marker[]): Marker[] {
@@ -163,8 +199,11 @@ function normalizeSaved(raw: unknown, players: SquadPlayer[]): Saved | null {
       overs: MATCH_OVERS.includes(data.overs as MatchOvers) ? (data.overs as MatchOvers) : DEFAULT_SETTINGS.overs,
       markers: data.markers.map((m) => ({
         ...m,
-        // Turning an old layout round keeps every fielder's position name.
-        ...(data.v === SAVED_VERSION ? {} : { x: VIEW - m.x, y: VIEW - m.y }),
+        // Older layouts are moved onto today's ground — turned round first if
+        // they predate that — which keeps every fielder's position name.
+        ...(data.v === SAVED_VERSION
+          ? {}
+          : fromRoundCanvas(data.v === 2 ? m : { x: 1000 - m.x, y: 1000 - m.y })),
         // A player removed from the squad since is simply unassigned.
         playerId: m.playerId !== null && known.has(m.playerId) ? m.playerId : null,
       })),
@@ -204,21 +243,21 @@ function overlap(a: Box, b: Box): number {
  * markers themselves. Close catchers (slips, keeper, gully) would otherwise
  * stack their names on top of one another.
  */
-function layoutLabels(items: { marker: Marker; position: string; player: string | null }[]): Map<string, LabelBox> {
+function layoutLabels(
+  items: { marker: Marker; position: string; player: string | null }[],
+  /** Size of dots and labels relative to normal — smaller when zoomed in. */
+  k = 1,
+): Map<string, LabelBox> {
   const out = new Map<string, LabelBox>();
   const placed: Box[] = [];
-  const dots: Box[] = items.map(({ marker: m }) => ({
-    x: m.x - MARKER_R,
-    y: m.y - MARKER_R,
-    w: MARKER_R * 2,
-    h: MARKER_R * 2,
-  }));
-  const reach = MARKER_R + LABEL_GAP;
+  const r = MARKER_R * k;
+  const dots: Box[] = items.map(({ marker: m }) => ({ x: m.x - r, y: m.y - r, w: r * 2, h: r * 2 }));
+  const reach = r + LABEL_GAP * k;
 
   for (const { marker: m, position, player } of items) {
     const w =
-      Math.max(textWidth(position, POS_SIZE, true), player ? textWidth(player, NAME_SIZE, false) : 0) + 18;
-    const h = player ? 52 : 30;
+      (Math.max(textWidth(position, POS_SIZE, true), player ? textWidth(player, NAME_SIZE, false) : 0) + 18) * k;
+    const h = (player ? 52 : 30) * k;
     const candidates = [
       { left: -w / 2, top: reach },
       { left: -w / 2, top: -(reach + h) },
@@ -226,8 +265,8 @@ function layoutLabels(items: { marker: Marker; position: string; player: string 
       { left: -(reach + w), top: -h / 2 },
     ].map((c) => ({
       // Keep the pill inside the picture.
-      left: Math.min(Math.max(c.left, 4 - m.x), VIEW - 4 - m.x - w),
-      top: Math.min(Math.max(c.top, 4 - m.y), VIEW - 4 - m.y - h),
+      left: Math.min(Math.max(c.left, 4 - m.x), VIEW_W - 4 - m.x - w),
+      top: Math.min(Math.max(c.top, 4 - m.y), VIEW_H - 4 - m.y - h),
       w,
       h,
     }));
@@ -279,8 +318,16 @@ export function FieldPlanner({
   /** The team field set last loaded or saved, which Save can update. */
   const [loadedSetId, setLoadedSetId] = useState<number | null>(null);
 
+  const [zoom, setZoom] = useState<Zoom>(FIT);
+
   const svgRef = useRef<SVGSVGElement>(null);
+  /** An unzoomed copy of the drawing, kept hidden, that the shared image is made from. */
+  const exportRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null);
+  /** Fingers (or the mouse) currently down on the ground, by pointer id. */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pan = useRef<{ x: number; y: number; zoom: Zoom } | null>(null);
+  const pinch = useRef<{ dist: number; anchor: Point; zoom: Zoom } | null>(null);
 
   // Restored after mount rather than in the initial state, so the server
   // render and the first client render agree.
@@ -325,14 +372,81 @@ export function FieldPlanner({
     return { x: pt.x, y: pt.y };
   }
 
-  function onMarkerDown(e: ReactPointerEvent, id: string) {
+  /**
+   * Screen position → ground point for a given window. Unlike the SVG's own
+   * transform this can answer for a window not yet on screen, which pinch
+   * needs to keep the point between the fingers still.
+   */
+  function clientToGround(clientX: number, clientY: number, z: Zoom): Point | null {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || !rect.width) return null;
+    const w = VIEW_W / z.s;
+    const h = VIEW_H / z.s;
+    // The drawing is fitted inside the element and centred (preserveAspectRatio meet).
+    const scale = Math.min(rect.width / w, rect.height / h);
+    const offX = (rect.width - w * scale) / 2;
+    const offY = (rect.height - h * scale) / 2;
+    return {
+      x: z.cx - w / 2 + (clientX - rect.left - offX) / scale,
+      y: z.cy - h / 2 + (clientY - rect.top - offY) / scale,
+    };
+  }
+
+  function startPinch() {
+    const [a, b] = [...pointers.current.values()];
+    const mid = clientToGround((a.x + b.x) / 2, (a.y + b.y) / 2, zoom);
+    if (!mid) return;
+    pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, anchor: mid, zoom };
+  }
+
+  function onPointerDown(e: ReactPointerEvent<SVGSVGElement>) {
     e.preventDefault();
     svgRef.current?.setPointerCapture(e.pointerId);
-    drag.current = { id, startX: e.clientX, startY: e.clientY, moved: false };
-    setDragId(id);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // A second finger turns whatever the first was doing into a pinch.
+    if (pointers.current.size === 2) {
+      drag.current = null;
+      setDragId(null);
+      pan.current = null;
+      startPinch();
+      return;
+    }
+    if (pointers.current.size > 2) return;
+
+    const markerId = (e.target as Element).closest("[data-marker]")?.getAttribute("data-marker");
+    if (markerId) {
+      drag.current = { id: markerId, startX: e.clientX, startY: e.clientY, moved: false };
+      setDragId(markerId);
+    } else if (zoom.s > 1) {
+      pan.current = { x: e.clientX, y: e.clientY, zoom };
+    }
   }
 
   function onPointerMove(e: ReactPointerEvent) {
+    if (pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    const pz = pinch.current;
+    if (pz && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      const s = Math.min(Math.max((pz.zoom.s * Math.hypot(a.x - b.x, a.y - b.y)) / pz.dist, 1), MAX_ZOOM);
+      // Pick the centre that puts the pinched point back under the fingers.
+      const trial = { s, cx: pz.zoom.cx, cy: pz.zoom.cy };
+      const now = clientToGround((a.x + b.x) / 2, (a.y + b.y) / 2, trial);
+      if (now) setZoom(clampZoom({ s, cx: trial.cx + pz.anchor.x - now.x, cy: trial.cy + pz.anchor.y - now.y }));
+      return;
+    }
+
+    const pn = pan.current;
+    if (pn) {
+      const from = clientToGround(pn.x, pn.y, pn.zoom);
+      const to = clientToGround(e.clientX, e.clientY, pn.zoom);
+      if (from && to) setZoom(clampZoom({ ...pn.zoom, cx: pn.zoom.cx - (to.x - from.x), cy: pn.zoom.cy - (to.y - from.y) }));
+      return;
+    }
+
     const d = drag.current;
     if (!d) return;
     if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < TAP_SLOP_PX) return;
@@ -344,12 +458,44 @@ export function FieldPlanner({
     setPresetId("");
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: ReactPointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pinch.current) {
+      // Lifting one finger of a pinch ends it; the other doesn't start a pan.
+      if (pointers.current.size < 2) pinch.current = null;
+      return;
+    }
+    pan.current = null;
     const d = drag.current;
     drag.current = null;
     setDragId(null);
     if (d && !d.moved) setEditing(d.id);
   }
+
+  function zoomBy(factor: number) {
+    setZoom((z) => zoomAround(z, factor, { x: z.cx, y: z.cy }));
+  }
+
+  // Wheel zoom: always for a trackpad pinch (which arrives as ctrl+wheel),
+  // and for a plain wheel only in full screen so the page still scrolls.
+  // React's wheel handler is passive and can't stop the page zooming too.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !fullScreenRef.current) return;
+      e.preventDefault();
+      const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002));
+      setZoom((z) => {
+        const anchor = clientToGround(e.clientX, e.clientY, z);
+        return anchor ? zoomAround(z, factor, anchor) : z;
+      });
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+    // clientToGround only reads the ref'd element.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function changeHand(next: Hand) {
     if (next === hand) return;
@@ -360,6 +506,7 @@ export function FieldPlanner({
   }
 
   function applyPreset(id: string) {
+    setZoom(FIT);
     setPresetId(id);
     if (id) setMarkers((ms) => presetMarkers(id, hand, ms));
   }
@@ -386,6 +533,7 @@ export function FieldPlanner({
   function exitFullScreen() {
     fullScreenRef.current = false;
     setFullScreen(false);
+    setZoom(FIT);
     leaveBrowserFullScreen();
   }
 
@@ -396,6 +544,7 @@ export function FieldPlanner({
       if (!document.fullscreenElement) {
         fullScreenRef.current = false;
         setFullScreen(false);
+        setZoom(FIT);
       }
     };
     const onKey = (e: KeyboardEvent) => {
@@ -424,6 +573,7 @@ export function FieldPlanner({
   }
 
   function reset() {
+    setZoom(FIT);
     setLoadedSetId(null);
     update({ title: "" });
     setPresetId(DEFAULT_PRESET.id);
@@ -462,7 +612,11 @@ export function FieldPlanner({
     player: labelMode === "name" ? playerOf(m)?.name ?? null : null,
     dot: dotText(m, playerOf(m), labelMode),
   }));
-  const labels = layoutLabels(items);
+  // Zoomed in, dots and labels grow by only √s while the ground grows by s,
+  // so a crowded cordon spreads out instead of just getting bigger.
+  const k = 1 / Math.sqrt(zoom.s);
+  const labels = layoutLabels(items, k);
+  const exportLabels = layoutLabels(items);
   // Draw the marker being dragged last so it sits above the rest.
   const drawOrder = dragId
     ? [...items.filter((i) => i.marker.id !== dragId), ...items.filter((i) => i.marker.id === dragId)]
@@ -643,16 +797,17 @@ export function FieldPlanner({
         )}
         <svg
           ref={svgRef}
-          viewBox={`0 0 ${VIEW} ${VIEW}`}
+          viewBox={viewBoxOf(zoom)}
           className={cn("select-none", fullScreen ? "min-h-0 w-full flex-1" : "block h-auto w-full")}
-          style={{ touchAction: "none" }}
+          style={{ touchAction: "none", cursor: zoom.s > 1 ? "move" : undefined }}
+          onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           role="img"
           aria-label="Cricket ground with fielding positions"
         >
-          <Ground hand={hand} />
+          <Ground hand={hand} clipId="field-grass" />
           <g fontFamily={FONT}>
             {drawOrder.map(({ marker: m, position, player, dot }) => (
               <MarkerView
@@ -662,8 +817,30 @@ export function FieldPlanner({
                 player={player}
                 dot={dot}
                 label={labels.get(m.id)!}
+                k={k}
                 active={m.id === dragId}
-                onPointerDown={(e) => onMarkerDown(e, m.id)}
+              />
+            ))}
+          </g>
+        </svg>
+        <ZoomControls
+          zoom={zoom.s}
+          onIn={() => zoomBy(1.5)}
+          onOut={() => zoomBy(1 / 1.5)}
+          onFit={() => setZoom(FIT)}
+          className={fullScreen ? "bottom-12" : "bottom-2.5"}
+        />
+        <svg ref={exportRef} viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} style={{ display: "none" }} aria-hidden>
+          <Ground hand={hand} clipId="field-grass-export" />
+          <g fontFamily={FONT}>
+            {items.map(({ marker: m, position, player, dot }) => (
+              <MarkerView
+                key={m.id}
+                marker={m}
+                position={position}
+                player={player}
+                dot={dot}
+                label={exportLabels.get(m.id)!}
               />
             ))}
           </g>
@@ -704,7 +881,7 @@ export function FieldPlanner({
         </p>
       ) : null}
 
-      <ExportButtons svgRef={svgRef} settings={settings} markers={markers} playerById={playerById} />
+      <ExportButtons svgRef={exportRef} settings={settings} markers={markers} playerById={playerById} />
 
       <SavedFields
         sets={savedSets}
@@ -839,51 +1016,103 @@ function Segmented<T extends string>({
   );
 }
 
+function ZoomControls({
+  zoom,
+  onIn,
+  onOut,
+  onFit,
+  className,
+}: {
+  zoom: number;
+  onIn: () => void;
+  onOut: () => void;
+  onFit: () => void;
+  className?: string;
+}) {
+  const btn =
+    "grid h-9 w-9 place-items-center rounded-xl bg-[#000]/30 text-[20px] font-semibold leading-none text-white backdrop-blur-sm active:bg-[#000]/45 disabled:opacity-40";
+  return (
+    <div className={cn("absolute right-2.5 z-10 flex flex-col gap-1.5", className)}>
+      <button type="button" onClick={onIn} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in" className={btn}>
+        +
+      </button>
+      <button type="button" onClick={onOut} disabled={zoom <= 1} aria-label="Zoom out" className={btn}>
+        −
+      </button>
+      {zoom > 1 ? (
+        <button type="button" onClick={onFit} aria-label="Fit whole ground" className={cn(btn, "text-[12px]")}>
+          Fit
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /** The grass, rope, 30-yard circle and pitch. Plain SVG attributes only, so
  * the same nodes can be serialised straight into the shared image. */
-function Ground({ hand }: { hand: Hand }) {
+function Ground({ hand, clipId }: { hand: Hand; clipId: string }) {
   const stripes = [];
   const stripeW = 70;
   for (let x = CENTER - BOUNDARY_R, i = 0; x < CENTER + BOUNDARY_R; x += stripeW, i++) {
     if (i % 2 === 0) {
-      stripes.push(<rect key={x} x={x} y={0} width={stripeW} height={VIEW} fill="#4c9a45" />);
+      stripes.push(<rect key={x} x={x} y={0} width={stripeW} height={VIEW_H} fill="#4c9a45" />);
     }
   }
   const ring =
     `M ${CENTER - RING_R} ${PITCH_BOTTOM_Y} L ${CENTER - RING_R} ${PITCH_TOP_Y} ` +
     `A ${RING_R} ${RING_R} 0 0 1 ${CENTER + RING_R} ${PITCH_TOP_Y} ` +
     `L ${CENTER + RING_R} ${PITCH_BOTTOM_Y} A ${RING_R} ${RING_R} 0 0 1 ${CENTER - RING_R} ${PITCH_BOTTOM_Y} Z`;
-  const offX = offSideOnRight(hand) ? VIEW - 70 : 70;
-  const legX = VIEW - offX;
+  const offX = offSideOnRight(hand) ? VIEW_W - 70 : 70;
+  const legX = VIEW_W - offX;
   const pitchW = 44;
 
   return (
     <g>
-      <rect x={0} y={0} width={VIEW} height={VIEW} fill="#2f6f2c" />
-      <clipPath id="field-grass">
-        <circle cx={CENTER} cy={CENTER} r={BOUNDARY_R} />
+      <rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill="#2f6f2c" />
+      <clipPath id={clipId}>
+        <ellipse cx={CENTER} cy={SCREEN_CY} rx={ROPE_RX} ry={ROPE_RY} />
       </clipPath>
-      <circle cx={CENTER} cy={CENTER} r={BOUNDARY_R} fill="#43903d" />
-      <g clipPath="url(#field-grass)">{stripes}</g>
-      <circle cx={CENTER} cy={CENTER} r={BOUNDARY_R} fill="none" stroke="#ffffff" strokeWidth={6} />
-      <path d={ring} fill="none" stroke="#ffffff" strokeOpacity={0.75} strokeWidth={3} strokeDasharray="14 12" />
-      <rect
-        x={CENTER - pitchW / 2}
-        y={PITCH_TOP_Y - 18}
-        width={pitchW}
-        height={PITCH_BOTTOM_Y - PITCH_TOP_Y + 36}
-        rx={4}
-        fill="#d9c48f"
-      />
-      {[PITCH_TOP_Y, PITCH_BOTTOM_Y].map((y) => (
-        <g key={y}>
-          <line x1={CENTER - pitchW / 2 - 6} x2={CENTER + pitchW / 2 + 6} y1={y} y2={y} stroke="#ffffff" strokeWidth={2} />
-          <rect x={CENTER - 7} y={y - 2} width={14} height={4} fill="#7a4b21" />
-        </g>
-      ))}
+      <ellipse cx={CENTER} cy={SCREEN_CY} rx={ROPE_RX} ry={ROPE_RY} fill="#43903d" />
+      <g clipPath={`url(#${clipId})`}>{stripes}</g>
+      <ellipse cx={CENTER} cy={SCREEN_CY} rx={ROPE_RX} ry={ROPE_RY} fill="none" stroke="#ffffff" strokeWidth={6} />
+      {/* The ring and pitch are drawn round and stretched with the ground;
+          the strokes keep their width. */}
+      <g transform={CIRCLE_TRANSFORM}>
+        <path
+          d={ring}
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity={0.75}
+          strokeWidth={3}
+          strokeDasharray="14 12"
+          vectorEffect="non-scaling-stroke"
+        />
+        <rect
+          x={CENTER - pitchW / 2}
+          y={PITCH_TOP_Y - 18}
+          width={pitchW}
+          height={PITCH_BOTTOM_Y - PITCH_TOP_Y + 36}
+          rx={4}
+          fill="#d9c48f"
+        />
+        {[PITCH_TOP_Y, PITCH_BOTTOM_Y].map((y) => (
+          <g key={y}>
+            <line
+              x1={CENTER - pitchW / 2 - 6}
+              x2={CENTER + pitchW / 2 + 6}
+              y1={y}
+              y2={y}
+              stroke="#ffffff"
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+            <rect x={CENTER - 7} y={y - 2} width={14} height={4} fill="#7a4b21" />
+          </g>
+        ))}
+      </g>
       <g fontFamily={FONT} fontWeight={700} fontSize={30} fill="#ffffff" fillOpacity={0.5} textAnchor="middle">
-        <text x={offX} y={CENTER + 10}>OFF</text>
-        <text x={legX} y={CENTER + 10}>LEG</text>
+        <text x={offX} y={SCREEN_CY + 10}>OFF</text>
+        <text x={legX} y={SCREEN_CY + 10}>LEG</text>
       </g>
     </g>
   );
@@ -895,37 +1124,46 @@ function MarkerView({
   player,
   dot,
   label: { left, top, w, h },
-  active,
-  onPointerDown,
+  k = 1,
+  active = false,
 }: {
   marker: Marker;
   position: string;
   player: string | null;
   dot: string;
   label: LabelBox;
-  active: boolean;
-  onPointerDown: (e: ReactPointerEvent) => void;
+  /** Size relative to normal — see {@link layoutLabels}. */
+  k?: number;
+  active?: boolean;
 }) {
-  const r = MARKER_R;
+  const r = MARKER_R * k;
+  const dotSize = dotFontSize(dot) * k;
 
   return (
     <g
       transform={`translate(${marker.x} ${marker.y})`}
-      onPointerDown={onPointerDown}
+      data-marker={marker.id}
       style={{ cursor: active ? "grabbing" : "grab" }}
     >
       {/* Generous invisible hit area for fingers. */}
-      <circle r={r + 16} fill="transparent" />
-      <circle r={active ? r + 4 : r} fill={COLORS[marker.role]} stroke="#ffffff" strokeWidth={3} />
-      <text y={dotFontSize(dot) * 0.35} textAnchor="middle" fontSize={dotFontSize(dot)} fontWeight={700} fill="#ffffff">
+      <circle r={r + 16 * k} fill="transparent" />
+      <circle r={active ? r + 4 * k : r} fill={COLORS[marker.role]} stroke="#ffffff" strokeWidth={3 * k} />
+      <text y={dotSize * 0.35} textAnchor="middle" fontSize={dotSize} fontWeight={700} fill="#ffffff">
         {dot}
       </text>
-      <rect x={left} y={top} width={w} height={h} rx={10} fill="#ffffff" fillOpacity={0.92} />
-      <text x={left + w / 2} y={top + 22} textAnchor="middle" fontSize={POS_SIZE} fontWeight={700} fill="#1c1c1e">
+      <rect x={left} y={top} width={w} height={h} rx={10 * k} fill="#ffffff" fillOpacity={0.92} />
+      <text
+        x={left + w / 2}
+        y={top + 22 * k}
+        textAnchor="middle"
+        fontSize={POS_SIZE * k}
+        fontWeight={700}
+        fill="#1c1c1e"
+      >
         {position}
       </text>
       {player ? (
-        <text x={left + w / 2} y={top + 44} textAnchor="middle" fontSize={NAME_SIZE} fill="#3a3a3c">
+        <text x={left + w / 2} y={top + 44 * k} textAnchor="middle" fontSize={NAME_SIZE * k} fill="#3a3a3c">
           {player}
         </text>
       ) : null}
@@ -1093,8 +1331,11 @@ async function renderCanvas(
   const W = 1080;
   const H = 1920;
   const groundTop = 230;
-  const keyTop = groundTop + VIEW + 60;
-  const rowH = 50;
+  // The oval is taller than wide; drawn a little narrower so the key still fits.
+  const groundW = 940;
+  const groundH = Math.round((groundW * VIEW_H) / VIEW_W);
+  const keyTop = groundTop + groundH + 40;
+  const rowH = 46;
 
   const serializer = new XMLSerializer();
   const groundMarkup = Array.from(ground.childNodes)
@@ -1108,7 +1349,7 @@ async function renderCanvas(
   const key = markers
     .map((m, i) => {
       const x = 60;
-      const y = keyTop + 55 + i * rowH;
+      const y = keyTop + 50 + i * rowH;
       const player = m.playerId !== null ? playerById.get(m.playerId) : undefined;
       // The key always names the player, whichever way the dots are showing.
       const who = player
@@ -1119,7 +1360,7 @@ async function renderCanvas(
       return (
         `<circle cx="${x + 17}" cy="${y - 9}" r="17" fill="${COLORS[m.role]}"/>` +
         `<text x="${x + 17}" y="${y - 9 + dotSize * 0.35}" text-anchor="middle" font-size="${dotSize}" font-weight="700" fill="#fff">${escapeXml(dot)}</text>` +
-        `<text x="${x + 48}" y="${y}" font-size="28" fill="#1c1c1e"><tspan font-weight="700">${escapeXml(markerPosition(m, hand))}</tspan>` +
+        `<text x="${x + 48}" y="${y}" font-size="26" fill="#1c1c1e"><tspan font-weight="700">${escapeXml(markerPosition(m, hand))}</tspan>` +
         (who ? `<tspan fill="#6e6e73"> — ${escapeXml(who)}</tspan>` : "") +
         `</text>`
       );
@@ -1133,7 +1374,7 @@ async function renderCanvas(
     `<text x="40" y="120" font-size="48" font-weight="800" fill="#1c1c1e">${escapeXml(title || "Field set")}</text>` +
     `<text x="40" y="164" font-size="28" font-weight="700" fill="#0A84FF">${escapeXml(phaseLine)}</text>` +
     `<text x="40" y="202" font-size="25" fill="#6e6e73">${escapeXml(sub)}</text>` +
-    `<svg x="40" y="${groundTop}" width="${VIEW}" height="${VIEW}" viewBox="0 0 ${VIEW} ${VIEW}">${groundMarkup}</svg>` +
+    `<svg x="${(W - groundW) / 2}" y="${groundTop}" width="${groundW}" height="${groundH}" viewBox="0 0 ${VIEW_W} ${VIEW_H}">${groundMarkup}</svg>` +
     `<text x="40" y="${keyTop + 6}" font-size="24" font-weight="700" fill="#6e6e73" letter-spacing="1.5">FIELD</text>` +
     key +
     `</svg>`;

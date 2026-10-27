@@ -3,29 +3,63 @@
  * position naming can be reasoned about (and reused for the shared image) on
  * its own.
  *
- * The ground is drawn in a 1000×1000 SVG viewBox from behind the bowler, the
- * TV view: the striker and keeper are at the top, the bowler runs in from the
- * bottom. For a right-hander that puts the off side on the left of the screen
- * and the leg side on the right; a left-hander is the mirror image.
+ * The ground is seen from behind the bowler, the TV view: the striker and
+ * keeper are at the top, the bowler runs in from the bottom. For a
+ * right-hander that puts the off side on the left of the screen and the leg
+ * side on the right; a left-hander is the mirror image.
+ *
+ * Two coordinate spaces:
+ * - **Circle space**: a round ground in a 1000×1000 square. All the cricket
+ *   maths (names, presets, the 30-yard circle) is done here.
+ * - **Screen space**: the 1000×1160 canvas actually drawn, where that circle
+ *   is stretched along the pitch into the slight oval of a real ground.
+ * Every exported function takes and returns screen points; the constants
+ * marked "circle space" are for drawing inside {@link CIRCLE_TRANSFORM}.
  */
 
 export type Hand = "RHB" | "LHB";
 
-export const VIEW = 1000;
-export const CENTER = VIEW / 2;
+/** Circle space: the centre of the round ground. */
+export const CENTER = 500;
 /** Boundary rope radius — roughly a 65-yard ground. */
 export const BOUNDARY_R = 470;
 /** Half the 22-yard pitch, in the same scale as the boundary. */
 const HALF_PITCH = 80;
+/** Circle space: the two sets of stumps. */
 export const STRIKER_Y = CENTER - HALF_PITCH;
 export const BOWLER_END_Y = CENTER + HALF_PITCH;
-/** The two ends of the pitch, top and bottom of the screen. */
+/** Circle space: the two ends of the pitch, top and bottom of the screen. */
 export const PITCH_TOP_Y = Math.min(STRIKER_Y, BOWLER_END_Y);
 export const PITCH_BOTTOM_Y = Math.max(STRIKER_Y, BOWLER_END_Y);
-/** The 30-yard circle: semicircles of this radius around each set of stumps. */
+/** Circle space: the 30-yard circle is semicircles of this radius around
+ * each set of stumps. */
 export const RING_R = 217;
 
 export type Point = { x: number; y: number };
+
+/** How much longer the ground is along the pitch than across it. */
+const KY = 1.16;
+/** Screen space: the canvas, and the oval rope's centre and radii. */
+export const VIEW_W = 1000;
+export const VIEW_H = Math.round(1000 * KY);
+export const SCREEN_CY = VIEW_H / 2;
+export const ROPE_RX = BOUNDARY_R;
+export const ROPE_RY = BOUNDARY_R * KY;
+/** SVG transform that draws circle-space shapes onto the oval. */
+export const CIRCLE_TRANSFORM = `translate(0 ${SCREEN_CY}) scale(1 ${KY}) translate(0 ${-CENTER})`;
+
+function toCircle(p: Point): Point {
+  return { x: p.x, y: CENTER + (p.y - SCREEN_CY) / KY };
+}
+
+function fromCircle(p: Point): Point {
+  return { x: p.x, y: SCREEN_CY + (p.y - CENTER) * KY };
+}
+
+/** Places a point saved on the old round, square canvas onto the oval. */
+export function fromRoundCanvas(p: Point): Point {
+  return fromCircle(p);
+}
 
 /**
  * A named fielding position. `angle` is in degrees from straight down the
@@ -109,7 +143,8 @@ function ropeDistance(ux: number, uy: number): number {
 }
 
 /** Screen point → angle/distance relative to the striker, for the given batter. */
-export function toPolar(p: Point, hand: Hand): { angle: number; r: number } {
+export function toPolar(screen: Point, hand: Hand): { angle: number; r: number } {
+  const p = toCircle(screen);
   const dx = p.x - CENTER;
   const dy = p.y - STRIKER_Y;
   const len = Math.hypot(dx, dy);
@@ -123,7 +158,7 @@ export function fromPolar(angle: number, r: number, hand: Hand): Point {
   const ux = Math.sin(angle * RAD) * offSign(hand);
   const uy = Math.cos(angle * RAD) * STRAIGHT_SIGN;
   const d = r * ropeDistance(ux, uy);
-  return { x: CENTER + ux * d, y: STRIKER_Y + uy * d };
+  return fromCircle({ x: CENTER + ux * d, y: STRIKER_Y + uy * d });
 }
 
 /**
@@ -162,7 +197,8 @@ export function sideOf(p: Point, hand: Hand): Side {
 }
 
 /** Inside the 30-yard circle: within RING_R of the line between the stumps. */
-export function insideRing(p: Point): boolean {
+export function insideRing(screen: Point): boolean {
+  const p = toCircle(screen);
   const y = Math.min(Math.max(p.y, PITCH_TOP_Y), PITCH_BOTTOM_Y);
   return Math.hypot(p.x - CENTER, p.y - y) <= RING_R;
 }
@@ -173,13 +209,14 @@ export function behindSquareLeg(p: Point, hand: Hand): boolean {
 }
 
 /** Keeps a dragged marker on the grass, just inside the rope. */
-export function clampToGround(p: Point, margin = 18): Point {
+export function clampToGround(screen: Point, margin = 18): Point {
+  const p = toCircle(screen);
   const dx = p.x - CENTER;
   const dy = p.y - CENTER;
   const len = Math.hypot(dx, dy);
   const max = BOUNDARY_R - margin;
-  if (len <= max) return p;
-  return { x: CENTER + (dx / len) * max, y: CENTER + (dy / len) * max };
+  if (len <= max) return screen;
+  return fromCircle({ x: CENTER + (dx / len) * max, y: CENTER + (dy / len) * max });
 }
 
 export function positionPoint(name: string, hand: Hand): Point {
@@ -188,8 +225,8 @@ export function positionPoint(name: string, hand: Hand): Point {
   return fromPolar(pos.angle, pos.r, hand);
 }
 
-export const BOWLER_HOME: Point = { x: CENTER, y: BOWLER_END_Y + 30 * STRAIGHT_SIGN };
-export const KEEPER_HOME: Point = { x: CENTER, y: STRIKER_Y - 75 * STRAIGHT_SIGN };
+export const BOWLER_HOME: Point = fromCircle({ x: CENTER, y: BOWLER_END_Y + 30 * STRAIGHT_SIGN });
+export const KEEPER_HOME: Point = fromCircle({ x: CENTER, y: STRIKER_Y - 75 * STRAIGHT_SIGN });
 
 export type Preset = { id: string; label: string; positions: string[] };
 
