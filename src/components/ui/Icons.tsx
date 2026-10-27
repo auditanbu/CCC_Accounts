@@ -124,6 +124,18 @@ export const TrashIcon = (p: IconProps) => (
   </Base>
 );
 
+export const ExpandIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4.4 9.2V4.4h4.8M19.6 9.2V4.4h-4.8M4.4 14.8v4.8h4.8M19.6 14.8v4.8h-4.8" />
+  </Base>
+);
+
+export const CollapseIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9.2 4.4v4.8H4.4M14.8 4.4v4.8h4.8M9.2 19.6v-4.8H4.4M14.8 19.6v-4.8h4.8" />
+  </Base>
+);
+
 export const PencilIcon = (p: IconProps) => (
   <Base {...p}>
     <path d="M15.6 4.6 19.4 8.4M4.4 19.6l.9-3.6L16.1 5.2a1.6 1.6 0 0 1 2.3 0l.4.4a1.6 1.6 0 0 1 0 2.3L8 18.7Z" />

@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 
 import { SavedFields, type SavedFieldSet } from "@/app/field/SavedFields";
 import { Sheet } from "@/components/ui/Sheet";
-import { CheckIcon, ChevronRightIcon, DownloadIcon, ShareIcon } from "@/components/ui/Icons";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  CollapseIcon,
+  DownloadIcon,
+  ExpandIcon,
+  ShareIcon,
+} from "@/components/ui/Icons";
 import { cn } from "@/lib/cn";
 import { TEAM_NAME } from "@/lib/constants";
 import {
@@ -86,6 +93,10 @@ const COLORS: Record<Role, string> = {
 };
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
+
+function leaveBrowserFullScreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
 
 function mirror(p: Point): Point {
   return { x: VIEW - p.x, y: p.y };
@@ -264,6 +275,7 @@ export function FieldPlanner({
   const [dragId, setDragId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
   /** The team field set last loaded or saved, which Save can update. */
   const [loadedSetId, setLoadedSetId] = useState<number | null>(null);
 
@@ -351,6 +363,54 @@ export function FieldPlanner({
     setPresetId(id);
     if (id) setMarkers((ms) => presetMarkers(id, hand, ms));
   }
+
+  // Full screen is the ground laid over the whole page. The browser's own
+  // full-screen mode is asked for on top of that to hide its toolbars, but
+  // iPhone Safari doesn't offer it for pages, so the overlay works without it.
+  // It goes on the whole document rather than the ground so the player
+  // picker sheet, which opens on <body>, still shows.
+  const fullScreenRef = useRef(false);
+
+  function enterFullScreen() {
+    fullScreenRef.current = true;
+    setFullScreen(true);
+    document.documentElement
+      .requestFullscreen?.()
+      // Closed again before the browser got there — don't strand it full screen.
+      .then(() => {
+        if (!fullScreenRef.current) leaveBrowserFullScreen();
+      })
+      .catch(() => {});
+  }
+
+  function exitFullScreen() {
+    fullScreenRef.current = false;
+    setFullScreen(false);
+    leaveBrowserFullScreen();
+  }
+
+  useEffect(() => {
+    if (!fullScreen) return;
+    // Leaving the browser's full screen (Esc, back gesture) leaves ours too.
+    const onChange = () => {
+      if (!document.fullscreenElement) {
+        fullScreenRef.current = false;
+        setFullScreen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !editing) exitFullScreen();
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [fullScreen, editing]);
 
   function loadSet(set: SavedFieldSet) {
     const saved = normalizeSaved(set.data, players);
@@ -543,11 +603,48 @@ export function FieldPlanner({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-[#2f6f2c] shadow-card">
+      <div
+        className={cn(
+          "bg-[#2f6f2c]",
+          fullScreen
+            ? // !mt-0: the parent's space-y margin would otherwise push the overlay down.
+              "fixed inset-0 z-[45] !mt-0 flex flex-col"
+            : "relative overflow-hidden rounded-2xl shadow-card",
+        )}
+      >
+        {fullScreen ? (
+          <div
+            className="flex items-center gap-3 px-4 pb-2 text-white"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-semibold">{title || "Field set"}</span>
+              <span className="block truncate text-[12px] text-white/75">{summary}</span>
+            </span>
+            <button
+              type="button"
+              onClick={exitFullScreen}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-[14px] font-semibold active:bg-white/25"
+            >
+              <CollapseIcon width={18} height={18} strokeWidth={2} />
+              Exit
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={enterFullScreen}
+            aria-label="Full screen"
+            title="Full screen"
+            className="absolute right-2.5 top-2.5 z-10 grid h-9 w-9 place-items-center rounded-xl bg-[#000]/30 text-white backdrop-blur-sm active:bg-[#000]/45"
+          >
+            <ExpandIcon width={19} height={19} strokeWidth={2} />
+          </button>
+        )}
         <svg
           ref={svgRef}
           viewBox={`0 0 ${VIEW} ${VIEW}`}
-          className="block h-auto w-full select-none"
+          className={cn("select-none", fullScreen ? "min-h-0 w-full flex-1" : "block h-auto w-full")}
           style={{ touchAction: "none" }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -571,6 +668,14 @@ export function FieldPlanner({
             ))}
           </g>
         </svg>
+        {fullScreen ? (
+          <p
+            className="px-4 pt-2 text-center text-[12px] text-white/75"
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+          >
+            Drag to move · tap a fielder to pick the player
+          </p>
+        ) : null}
       </div>
 
       <p className="-mt-2 px-1 text-[13px] text-label-secondary">
@@ -929,30 +1034,31 @@ function ExportButtons({
 
   return (
     <div className="space-y-2">
-      {canShareFiles ? (
-        <button type="button" onClick={share} disabled={status === "working"} className="btn-primary w-full">
-          <ShareIcon width={17} height={17} />
-          {status === "retry" ? "Tap again to share" : "Share image"}
-        </button>
-      ) : null}
+      {/* One row; short labels so three fit across a phone. */}
       <div className="flex gap-2">
+        {canShareFiles ? (
+          <button type="button" onClick={share} disabled={status === "working"} className="btn-primary flex-1 px-2">
+            <ShareIcon width={17} height={17} className="shrink-0" />
+            {status === "retry" ? "Tap again" : "Share"}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => save("png")}
           disabled={status === "working"}
-          className={cn("flex-1", canShareFiles ? "btn-secondary" : "btn-primary")}
+          className={cn("flex-1 px-2", canShareFiles ? "btn-secondary" : "btn-primary")}
         >
-          <DownloadIcon width={17} height={17} />
-          Save image
+          <DownloadIcon width={17} height={17} className="shrink-0" />
+          Image
         </button>
         <button
           type="button"
           onClick={() => save("pdf")}
           disabled={status === "working"}
-          className="btn-secondary flex-1"
+          className="btn-secondary flex-1 px-2"
         >
-          <DownloadIcon width={17} height={17} />
-          Save PDF
+          <DownloadIcon width={17} height={17} className="shrink-0" />
+          PDF
         </button>
       </div>
       {status === "error" ? (
@@ -962,8 +1068,8 @@ function ExportButtons({
       ) : (
         <p className="px-1 text-[12px] text-label-secondary">
           {canShareFiles
-            ? "Share opens WhatsApp or “Save Image” to put it in your Photos."
-            : "Downloads a PNG or PDF you can send on WhatsApp."}
+            ? "Share opens WhatsApp or “Save Image” for your Photos. Image and PDF download a file."
+            : "Image and PDF download a file you can send on WhatsApp."}
         </p>
       )}
     </div>
