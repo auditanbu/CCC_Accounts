@@ -234,3 +234,34 @@ export const PRESETS: Preset[] = [
     ],
   },
 ];
+
+export type Phase = "powerplay" | "middle" | "death";
+
+export const PHASES: { id: Phase; label: string; short: string }[] = [
+  { id: "powerplay", label: "Powerplay", short: "Powerplay" },
+  { id: "middle", label: "Middle overs", short: "Middle" },
+  { id: "death", label: "Death overs", short: "Death" },
+];
+
+export const MATCH_OVERS = [30, 20] as const;
+export type MatchOvers = (typeof MATCH_OVERS)[number];
+
+/** First and last over of each phase: [powerplay end, death start]. */
+const PHASE_SPLITS: Record<MatchOvers, [number, number]> = {
+  20: [6, 16],
+  30: [9, 25],
+};
+
+export function overRange(phase: Phase, overs: MatchOvers): [number, number] {
+  const [ppEnd, deathStart] = PHASE_SPLITS[overs];
+  if (phase === "powerplay") return [1, ppEnd];
+  if (phase === "middle") return [ppEnd + 1, deathStart - 1];
+  return [deathStart, overs];
+}
+
+/** "Powerplay · Overs 1–9" */
+export function phaseLabel(phase: Phase, overs: MatchOvers): string {
+  const [from, to] = overRange(phase, overs);
+  const name = PHASES.find((p) => p.id === phase)?.label ?? "";
+  return `${name} · Overs ${from}–${to}`;
+}

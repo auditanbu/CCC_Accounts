@@ -12,6 +12,8 @@ import {
   BOWLER_HOME,
   CENTER,
   KEEPER_HOME,
+  MATCH_OVERS,
+  PHASES,
   PRESETS,
   RING_R,
   STRIKER_Y,
@@ -19,10 +21,14 @@ import {
   behindSquareLeg,
   clampToGround,
   insideRing,
+  overRange,
+  phaseLabel,
   positionName,
   positionPoint,
   sideOf,
   type Hand,
+  type MatchOvers,
+  type Phase,
   type Point,
 } from "@/lib/fielding";
 import { avatarLabel, formatDate } from "@/lib/format";
@@ -37,7 +43,28 @@ type Marker = Point & {
   playerId: number | null;
 };
 
-type Saved = { hand: Hand; title: string; markers: Marker[] };
+/** What the dots show: each player's jersey number, or slot numbers with
+ * the player's name in the label. */
+type LabelMode = "jersey" | "name";
+
+/** Everything besides the markers that the shared image is headed with. */
+type Settings = {
+  hand: Hand;
+  title: string;
+  labelMode: LabelMode;
+  phase: Phase;
+  overs: MatchOvers;
+};
+
+const DEFAULT_SETTINGS: Settings = {
+  hand: "RHB",
+  title: "",
+  labelMode: "name",
+  phase: "powerplay",
+  overs: 30,
+};
+
+type Saved = Settings & { markers: Marker[] };
 
 const STORAGE_KEY = "field-set:v1";
 const DEFAULT_PRESET = PRESETS[0];
@@ -82,16 +109,31 @@ function markerBadge(m: Marker): string {
   return m.id;
 }
 
+/** Text inside a dot: the player's jersey number (or initials) in jersey
+ * mode, otherwise — or with nobody assigned — the slot badge. */
+function dotText(m: Marker, player: SquadPlayer | undefined, mode: LabelMode): string {
+  if (mode === "jersey" && player) return avatarLabel(player.name, player.jerseyNumber);
+  return markerBadge(m);
+}
+
+function dotFontSize(text: string): number {
+  return text.length <= 1 ? 20 : text.length === 2 ? 17 : 13;
+}
+
 function loadSaved(players: SquadPlayer[]): Saved | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw) as Saved;
+    const data = JSON.parse(raw) as Partial<Saved>;
     if (!Array.isArray(data.markers) || data.markers.length !== 11) return null;
     const known = new Set(players.map((p) => p.id));
+    // Layouts saved before a setting existed simply get its default.
     return {
       hand: data.hand === "LHB" ? "LHB" : "RHB",
       title: typeof data.title === "string" ? data.title : "",
+      labelMode: data.labelMode === "jersey" ? "jersey" : "name",
+      phase: PHASES.some((p) => p.id === data.phase) ? (data.phase as Phase) : DEFAULT_SETTINGS.phase,
+      overs: MATCH_OVERS.includes(data.overs as MatchOvers) ? (data.overs as MatchOvers) : DEFAULT_SETTINGS.overs,
       markers: data.markers.map((m) => ({
         ...m,
         // A player removed from the squad since is simply unassigned.
@@ -185,8 +227,8 @@ function layoutLabels(items: { marker: Marker; position: string; player: string 
  * whole set can be shared as a PNG to WhatsApp or saved to the phone.
  */
 export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
-  const [hand, setHand] = useState<Hand>("RHB");
-  const [title, setTitle] = useState("");
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const { hand, title, labelMode, phase, overs } = settings;
   const [presetId, setPresetId] = useState(DEFAULT_PRESET.id);
   const [markers, setMarkers] = useState<Marker[]>(() => presetMarkers(DEFAULT_PRESET.id, "RHB"));
   const [editing, setEditing] = useState<string | null>(null);
@@ -201,9 +243,9 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   useEffect(() => {
     const saved = loadSaved(players);
     if (saved) {
-      setHand(saved.hand);
-      setTitle(saved.title);
-      setMarkers(saved.markers);
+      const { markers: savedMarkers, ...savedSettings } = saved;
+      setSettings(savedSettings);
+      setMarkers(savedMarkers);
       setPresetId("");
     }
     setLoaded(true);
@@ -212,14 +254,19 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   useEffect(() => {
     if (!loaded) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ hand, title, markers } satisfies Saved));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, markers } satisfies Saved));
     } catch {
       // Private mode or storage full — the planner still works, it just
       // won't remember this layout next time.
     }
-  }, [loaded, hand, title, markers]);
+  }, [loaded, settings, markers]);
 
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const playerOf = (m: Marker) => (m.playerId !== null ? playerById.get(m.playerId) : undefined);
+
+  function update(patch: Partial<Settings>) {
+    setSettings((s) => ({ ...s, ...patch }));
+  }
 
   const fielders = markers.filter((m) => m.role === "fielder");
   const offCount = fielders.filter((m) => sideOf(m, hand) === "off").length;
@@ -262,7 +309,7 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
 
   function changeHand(next: Hand) {
     if (next === hand) return;
-    setHand(next);
+    update({ hand: next });
     // Flip the field across the pitch so every fielder keeps its position
     // name for the new batter.
     setMarkers((ms) => ms.map((m) => ({ ...m, ...mirror(m) })));
@@ -274,7 +321,7 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   }
 
   function reset() {
-    setTitle("");
+    update({ title: "" });
     setPresetId(DEFAULT_PRESET.id);
     setMarkers(presetMarkers(DEFAULT_PRESET.id, hand));
   }
@@ -292,11 +339,15 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
     setEditing(null);
   }
 
+  const bowlerId = markers.find((m) => m.role === "bowler")?.playerId ?? null;
+
   const editingMarker = markers.find((m) => m.id === editing) ?? null;
   const items = markers.map((m) => ({
     marker: m,
     position: markerPosition(m, hand),
-    player: m.playerId !== null ? playerById.get(m.playerId)?.name ?? null : null,
+    // Jersey mode puts the player in the dot, so the label is position only.
+    player: labelMode === "name" ? playerOf(m)?.name ?? null : null,
+    dot: dotText(m, playerOf(m), labelMode),
   }));
   const labels = layoutLabels(items);
   // Draw the marker being dragged last so it sits above the rest.
@@ -317,29 +368,70 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
             placeholder="e.g. Death overs vs Royal XI"
             value={title}
             maxLength={60}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => update({ title: e.target.value })}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="field-bowler" className="label">
+              Bowler
+            </label>
+            <select
+              id="field-bowler"
+              className="select"
+              value={bowlerId ?? ""}
+              onChange={(e) => assign("B", e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Not set</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="field-overs" className="label">
+              Match
+            </label>
+            <select
+              id="field-overs"
+              className="select"
+              value={overs}
+              onChange={(e) => update({ overs: Number(e.target.value) as MatchOvers })}
+            >
+              {MATCH_OVERS.map((o) => (
+                <option key={o} value={o}>
+                  {o} overs
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <span className="label">Over range · Overs {overRange(phase, overs).join("–")}</span>
+          <Segmented
+            label="Over range"
+            value={phase}
+            options={PHASES.map((p) => ({ value: p.id, label: p.short }))}
+            onChange={(v) => update({ phase: v })}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <span className="label">Batter</span>
-            <div className="flex rounded-xl bg-black/[0.05] p-1" role="group" aria-label="Batter">
-              {(["RHB", "LHB"] as const).map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => changeHand(h)}
-                  aria-pressed={hand === h}
-                  className={cn(
-                    "flex-1 rounded-lg py-1.5 text-[14px] font-semibold transition-colors",
-                    hand === h ? "bg-surface text-label shadow-sm" : "text-label-secondary",
-                  )}
-                >
-                  {h === "RHB" ? "Right" : "Left"}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="Batter"
+              value={hand}
+              options={[
+                { value: "RHB", label: "Right" },
+                { value: "LHB", label: "Left" },
+              ]}
+              onChange={changeHand}
+            />
           </div>
           <div>
             <label htmlFor="field-preset" className="label">
@@ -360,6 +452,19 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
             </select>
           </div>
         </div>
+
+        <div>
+          <span className="label">Dots show</span>
+          <Segmented
+            label="Dots show"
+            value={labelMode}
+            options={[
+              { value: "name", label: "Name" },
+              { value: "jersey", label: "Jersey no." },
+            ]}
+            onChange={(v) => update({ labelMode: v })}
+          />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-[#2f6f2c] shadow-card">
@@ -376,12 +481,13 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
         >
           <Ground hand={hand} />
           <g fontFamily={FONT}>
-            {drawOrder.map(({ marker: m, position, player }) => (
+            {drawOrder.map(({ marker: m, position, player, dot }) => (
               <MarkerView
                 key={m.id}
                 marker={m}
                 position={position}
                 player={player}
+                dot={dot}
                 label={labels.get(m.id)!}
                 active={m.id === dragId}
                 onPointerDown={(e) => onMarkerDown(e, m.id)}
@@ -417,7 +523,7 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
         </p>
       ) : null}
 
-      <ExportButtons svgRef={svgRef} title={title} hand={hand} markers={markers} playerById={playerById} />
+      <ExportButtons svgRef={svgRef} settings={settings} markers={markers} playerById={playerById} />
 
       <section className="space-y-2.5">
         <div className="flex items-end justify-between gap-3">
@@ -428,15 +534,19 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
         </div>
         <ul className="list-group">
           {markers.map((m) => {
-            const player = m.playerId !== null ? playerById.get(m.playerId) : undefined;
+            const player = playerOf(m);
+            const dot = dotText(m, player, labelMode);
             return (
               <li key={m.id}>
                 <button type="button" onClick={() => setEditing(m.id)} className="list-row-link w-full text-left">
                   <span
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white"
+                    className={cn(
+                      "grid h-8 w-8 shrink-0 place-items-center rounded-full font-bold text-white",
+                      dot.length > 2 ? "text-[10px]" : "text-[12px]",
+                    )}
                     style={{ background: COLORS[m.role] }}
                   >
-                    {markerBadge(m)}
+                    {dot}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
                     {markerPosition(m, hand)}
@@ -505,6 +615,38 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   );
 }
 
+/** iOS-style segmented control. */
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex rounded-xl bg-black/[0.05] p-1" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={cn(
+            "flex-1 rounded-lg py-1.5 text-[14px] font-semibold transition-colors",
+            value === o.value ? "bg-surface text-label shadow-sm" : "text-label-secondary",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** The grass, rope, 30-yard circle and pitch. Plain SVG attributes only, so
  * the same nodes can be serialised straight into the shared image. */
 function Ground({ hand }: { hand: Hand }) {
@@ -559,6 +701,7 @@ function MarkerView({
   marker,
   position,
   player,
+  dot,
   label: { left, top, w, h },
   active,
   onPointerDown,
@@ -566,6 +709,7 @@ function MarkerView({
   marker: Marker;
   position: string;
   player: string | null;
+  dot: string;
   label: LabelBox;
   active: boolean;
   onPointerDown: (e: ReactPointerEvent) => void;
@@ -581,14 +725,8 @@ function MarkerView({
       {/* Generous invisible hit area for fingers. */}
       <circle r={r + 16} fill="transparent" />
       <circle r={active ? r + 4 : r} fill={COLORS[marker.role]} stroke="#ffffff" strokeWidth={3} />
-      <text
-        y={7}
-        textAnchor="middle"
-        fontSize={marker.role === "keeper" ? 17 : 20}
-        fontWeight={700}
-        fill="#ffffff"
-      >
-        {markerBadge(marker)}
+      <text y={dotFontSize(dot) * 0.35} textAnchor="middle" fontSize={dotFontSize(dot)} fontWeight={700} fill="#ffffff">
+        {dot}
       </text>
       <rect x={left} y={top} width={w} height={h} rx={10} fill="#ffffff" fillOpacity={0.92} />
       <text x={left + w / 2} y={top + 22} textAnchor="middle" fontSize={POS_SIZE} fontWeight={700} fill="#1c1c1e">
@@ -611,17 +749,16 @@ type ExportStatus = "idle" | "working" | "retry" | "done" | "error";
  */
 function ExportButtons({
   svgRef,
-  title,
-  hand,
+  settings,
   markers,
   playerById,
 }: {
   svgRef: React.RefObject<SVGSVGElement | null>;
-  title: string;
-  hand: Hand;
+  settings: Settings;
   markers: Marker[];
   playerById: Map<number, SquadPlayer>;
 }) {
+  const { title } = settings;
   const [status, setStatus] = useState<ExportStatus>("idle");
   const [pending, setPending] = useState<File | null>(null);
   const [canShareFiles, setCanShareFiles] = useState(false);
@@ -639,14 +776,14 @@ function ExportButtons({
   useEffect(() => {
     setPending(null);
     setStatus((s) => (s === "retry" ? "idle" : s));
-  }, [title, hand, markers]);
+  }, [settings, markers]);
 
   const fileName = `field-set${title ? `-${title.trim().replace(/[^a-z0-9]+/gi, "-").toLowerCase()}` : ""}.png`;
 
   async function makeFile(): Promise<File> {
     const svg = svgRef.current;
     if (!svg) throw new Error("ground not rendered");
-    const blob = await renderPng(svg, { title, hand, markers, playerById });
+    const blob = await renderPng(svg, settings, markers, playerById);
     return new File([blob], fileName, { type: "image/png" });
   }
 
@@ -730,15 +867,12 @@ function ExportButtons({
 
 async function renderPng(
   ground: SVGSVGElement,
-  {
-    title,
-    hand,
-    markers,
-    playerById,
-  }: { title: string; hand: Hand; markers: Marker[]; playerById: Map<number, SquadPlayer> },
+  { title, hand, phase, overs, labelMode }: Settings,
+  markers: Marker[],
+  playerById: Map<number, SquadPlayer>,
 ): Promise<Blob> {
   const W = 1080;
-  const groundTop = 170;
+  const groundTop = 210;
   const keyTop = groundTop + VIEW + 30;
   const rowH = 36;
   const rows = Math.ceil(markers.length / 2);
@@ -749,19 +883,28 @@ async function renderPng(
     .map((n) => serializer.serializeToString(n))
     .join("");
 
-  const sub = `${hand === "RHB" ? "Right" : "Left"}-hand batter · ${formatDate(new Date())}`;
+  const bowlerId = markers.find((m) => m.role === "bowler")?.playerId ?? null;
+  const bowler = bowlerId !== null ? playerById.get(bowlerId)?.name : undefined;
+  const phaseLine = `${phaseLabel(phase, overs)}${bowler ? ` · Bowler: ${bowler}` : ""}`;
+  const sub = `${hand === "RHB" ? "Right" : "Left"}-hand batter · ${overs}-over match · ${formatDate(new Date())}`;
   const key = markers
     .map((m, i) => {
       const col = i < rows ? 0 : 1;
       const row = i < rows ? i : i - rows;
       const x = 60 + col * 500;
       const y = keyTop + 40 + row * rowH;
-      const player = m.playerId !== null ? playerById.get(m.playerId)?.name : undefined;
+      const player = m.playerId !== null ? playerById.get(m.playerId) : undefined;
+      // The key always names the player, whichever way the dots are showing.
+      const who = player
+        ? `${player.name}${player.jerseyNumber !== null ? ` (#${player.jerseyNumber})` : ""}`
+        : "";
+      const dot = dotText(m, player, labelMode);
+      const dotSize = Math.round(dotFontSize(dot) * 0.72);
       return (
         `<circle cx="${x + 14}" cy="${y - 8}" r="14" fill="${COLORS[m.role]}"/>` +
-        `<text x="${x + 14}" y="${y - 2}" text-anchor="middle" font-size="${m.role === "keeper" ? 12 : 15}" font-weight="700" fill="#fff">${markerBadge(m)}</text>` +
+        `<text x="${x + 14}" y="${y - 8 + dotSize * 0.35}" text-anchor="middle" font-size="${dotSize}" font-weight="700" fill="#fff">${escapeXml(dot)}</text>` +
         `<text x="${x + 38}" y="${y}" font-size="23" fill="#1c1c1e"><tspan font-weight="700">${escapeXml(markerPosition(m, hand))}</tspan>` +
-        (player ? `<tspan fill="#6e6e73"> — ${escapeXml(player)}</tspan>` : "") +
+        (who ? `<tspan fill="#6e6e73"> — ${escapeXml(who)}</tspan>` : "") +
         `</text>`
       );
     })
@@ -772,7 +915,8 @@ async function renderPng(
     `<rect width="${W}" height="${H}" fill="#F2F2F7"/>` +
     `<text x="40" y="58" font-size="26" font-weight="600" fill="#6e6e73">${escapeXml(TEAM_NAME)}</text>` +
     `<text x="40" y="112" font-size="44" font-weight="800" fill="#1c1c1e">${escapeXml(title || "Field set")}</text>` +
-    `<text x="40" y="150" font-size="24" fill="#6e6e73">${escapeXml(sub)}</text>` +
+    `<text x="40" y="152" font-size="26" font-weight="700" fill="#0A84FF">${escapeXml(phaseLine)}</text>` +
+    `<text x="40" y="188" font-size="23" fill="#6e6e73">${escapeXml(sub)}</text>` +
     `<svg x="40" y="${groundTop}" width="${VIEW}" height="${VIEW}" viewBox="0 0 ${VIEW} ${VIEW}">${groundMarkup}</svg>` +
     `<text x="40" y="${keyTop + 6}" font-size="22" font-weight="700" fill="#6e6e73" letter-spacing="1.5">FIELD</text>` +
     key +
