@@ -157,3 +157,22 @@ model MatchExpense {
   @@index([matchId])
   @@index([category])
 }
+
+/// A field placement saved from the field set planner. Stands apart from the
+/// ledger — nothing here touches matches, players or money.
+model FieldSet {
+  id        Int      @id @default(autoincrement())
+  name      String
+  /// Name typed by whoever saved it; "Admin" for the admin's saves.
+  savedBy   String
+  /// The saving phone's id (the esk_device cookie), which caps players at five
+  /// sets each and lets them change their own. Null for the admin's saves.
+  ownerKey  String?
+  byAdmin   Boolean  @default(false)
+  /// Planner state: { v, hand, title, labelMode, phase, overs, markers }.
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerKey])
+}

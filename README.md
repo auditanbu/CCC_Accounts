@@ -21,7 +21,7 @@ Built with **Next.js 15 (App Router, TypeScript)**, **Prisma + PostgreSQL** and
 | **Players** | Squad list with per-player outstanding, full match-by-match ledger, active/inactive status and a ₹100 / ₹200 default fee. |
 | **Tournaments** | Entry fee tracked against the "Tournament fee" expenses booked on that cup's matches. |
 | **Schedule** | Played matches and upcoming fixtures, grouped by month, with the next game highlighted. |
-| **Field set planner** | Drag nine fielders, the bowler and keeper on a top-down ground; each one is named after the position it's dropped in (Deep midwicket, Extra cover, Third man…). Right/left-hand batter, presets, squad names, and a one-tap share or save as a PNG. Open to everyone from the Home page. |
+| **Field set planner** | Drag nine fielders, the bowler and keeper on a top-down ground; each one is named after the position it's dropped in (Deep midwicket, Extra cover, Third man…). Right/left-hand batter, presets, squad names, over range, and share or save as a 9:16 PNG or PDF. Fields can be saved for the whole team: up to 5 per phone, unlimited for the admin; the phone that saved one (or the admin) can update or delete it. Open to everyone from the Home page. |
 | **WhatsApp export** | Copies a formatted plain-text summary to the clipboard, or opens WhatsApp directly. |
 
 ### The five calculations

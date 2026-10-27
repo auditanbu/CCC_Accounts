@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
+import { SavedFields, type SavedFieldSet } from "@/app/field/SavedFields";
 import { Sheet } from "@/components/ui/Sheet";
 import { CheckIcon, ChevronRightIcon, DownloadIcon, ShareIcon } from "@/components/ui/Icons";
 import { cn } from "@/lib/cn";
@@ -129,8 +130,17 @@ function dotFontSize(text: string): number {
 function loadSaved(players: SquadPlayer[]): Saved | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw) as Partial<Saved>;
+    return raw ? normalizeSaved(JSON.parse(raw), players) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Checks a layout from this phone's storage or the team's saved fields and
+ * brings it up to date with the current planner. */
+function normalizeSaved(raw: unknown, players: SquadPlayer[]): Saved | null {
+  try {
+    const data = (raw ?? {}) as Partial<Saved>;
     if (!Array.isArray(data.markers) || data.markers.length !== 11) return null;
     const known = new Set(players.map((p) => p.id));
     // Layouts saved before a setting existed simply get its default.
@@ -234,7 +244,18 @@ function layoutLabels(items: { marker: Marker; position: string; player: string 
  * after the conventional position nearest to where it's dropped, and the
  * whole set can be shared as a PNG to WhatsApp or saved to the phone.
  */
-export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
+export function FieldPlanner({
+  players,
+  savedSets,
+  admin,
+  myCount,
+}: {
+  players: SquadPlayer[];
+  savedSets: SavedFieldSet[];
+  admin: boolean;
+  /** Field sets this phone has saved, towards its limit. */
+  myCount: number;
+}) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const { hand, title, labelMode, phase, overs } = settings;
   const [presetId, setPresetId] = useState(DEFAULT_PRESET.id);
@@ -243,6 +264,8 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The team field set last loaded or saved, which Save can update. */
+  const [loadedSetId, setLoadedSetId] = useState<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null);
@@ -329,7 +352,19 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
     if (id) setMarkers((ms) => presetMarkers(id, hand, ms));
   }
 
+  function loadSet(set: SavedFieldSet) {
+    const saved = normalizeSaved(set.data, players);
+    if (!saved) return;
+    const { markers: savedMarkers, ...savedSettings } = saved;
+    setSettings(savedSettings);
+    setMarkers(savedMarkers);
+    setPresetId("");
+    setLoadedSetId(set.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function reset() {
+    setLoadedSetId(null);
     update({ title: "" });
     setPresetId(DEFAULT_PRESET.id);
     setMarkers(presetMarkers(DEFAULT_PRESET.id, hand));
@@ -565,6 +600,17 @@ export function FieldPlanner({ players }: { players: SquadPlayer[] }) {
       ) : null}
 
       <ExportButtons svgRef={svgRef} settings={settings} markers={markers} playerById={playerById} />
+
+      <SavedFields
+        sets={savedSets}
+        admin={admin}
+        myCount={myCount}
+        current={{ ...settings, markers, v: SAVED_VERSION }}
+        defaultName={title || PRESETS.find((p) => p.id === presetId)?.label || "Field set"}
+        loadedId={loadedSetId}
+        onLoad={loadSet}
+        onSaved={setLoadedSetId}
+      />
 
       <section className="space-y-2.5">
         <div className="flex items-end justify-between gap-3">
