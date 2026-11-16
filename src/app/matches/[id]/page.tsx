@@ -246,19 +246,16 @@ export default async function MatchDetailPage({
             </div>
           </div>
 
-          <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
-            <div>
+          {totals.income > 0 ? (
+            <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
-                Other income
+                Income
               </p>
-              <p className="mt-0.5 text-[12px] text-label-secondary">
-                {match.incomes.length} item{match.incomes.length === 1 ? "" : "s"}
+              <p className="text-[18px] font-bold">
+                <Money value={totals.income} />
               </p>
             </div>
-            <p className="text-[18px] font-bold">
-              <Money value={totals.income} />
-            </p>
-          </div>
+          ) : null}
 
           <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
             <div>
@@ -266,7 +263,7 @@ export default async function MatchDetailPage({
                 Net match balance
               </p>
               <p className="mt-0.5 text-[12px] text-label-secondary">
-                Collection + income − expenses
+                {totals.income > 0 ? "Collection + income − expenses" : "Collection − expenses"}
               </p>
             </div>
             <p className="text-[26px] font-bold tracking-[-0.02em]">
@@ -367,19 +364,14 @@ export default async function MatchDetailPage({
         )}
       </Section>
 
-      {/* Income */}
-      <Section title={`Income · ${formatMoney(totals.income)}`}>
-        <ExpenseSection
-          matchId={match.id}
-          expenses={match.incomes}
-          admin={admin}
-          kind="income"
-        />
-      </Section>
-
       {/* Expenses */}
       <Section title={`Expenses · ${formatMoney(totals.expenses)}`}>
-        <ExpenseSection matchId={match.id} expenses={match.expenses} admin={admin} />
+        <ExpenseSection
+          matchId={match.id}
+          expenses={match.expenses}
+          incomes={match.incomes}
+          admin={admin}
+        />
       </Section>
 
       {/* WhatsApp export */}

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, OVERS_OPTIONS } from "@/lib/constants";
+import { EXPENSE_CATEGORIES, INCOME_CATEGORY, OVERS_OPTIONS } from "@/lib/constants";
 import { round2 } from "@/lib/format";
 import { type ActionState, runAction } from "@/app/actions/types";
 
@@ -332,7 +332,6 @@ function moneyLineSchema(describeMessage: string) {
 }
 
 const expenseSchema = moneyLineSchema("Describe the expense.");
-const incomeSchema = moneyLineSchema("Describe the income.");
 
 function readMoneyLine(formData: FormData) {
   return {
@@ -351,6 +350,14 @@ export async function addExpenseAction(
   return runAction(async () => {
     await requireAdmin();
     const data = expenseSchema.parse(readMoneyLine(formData));
+
+    // "Income" sits at the end of the expense dropdown; it's money in, so it
+    // goes to the income table and adds to the balance instead.
+    if (data.category === INCOME_CATEGORY) {
+      await prisma.matchIncome.create({ data });
+      revalidateMatch(data.matchId);
+      return { ok: true, message: "Income added." };
+    }
 
     const known = (EXPENSE_CATEGORIES as readonly string[]).includes(data.category);
     await prisma.matchExpense.create({ data });
@@ -372,24 +379,6 @@ export async function deleteExpenseAction(formData: FormData): Promise<void> {
 /* ------------------------------------------------------------------ */
 /* Income                                                              */
 /* ------------------------------------------------------------------ */
-
-export async function addIncomeAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  return runAction(async () => {
-    await requireAdmin();
-    const data = incomeSchema.parse(readMoneyLine(formData));
-
-    const known = (INCOME_CATEGORIES as readonly string[]).includes(data.category);
-    await prisma.matchIncome.create({ data });
-    revalidateMatch(data.matchId);
-    return {
-      ok: true,
-      message: known ? "Income added." : `Added under "${data.category}".`,
-    };
-  });
-}
 
 export async function deleteIncomeAction(formData: FormData): Promise<void> {
   await requireAdmin();
