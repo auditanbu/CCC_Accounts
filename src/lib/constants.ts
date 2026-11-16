@@ -35,15 +35,9 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
-/** Income buckets — money in for a match other than players' match fees. */
-export const INCOME_CATEGORIES = [
-  "Prize money",
-  "Sponsorship",
-  "Guest player fee",
-  "Donation",
-  "MoM award",
-  "Others",
-] as const;
+/** Expense-form category for money received rather than spent. Picking it
+ * stores the line as match income, which adds to the balance. */
+export const INCOME_CATEGORY = "Income";
 
 /** The category that counts against a tournament's total entry fee. */
 export const TOURNAMENT_FEE_CATEGORY = "Tournament fee";
@@ -64,9 +58,5 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Umpire Fee": "bg-ios-blue",
   MoM: "bg-ios-yellow",
   Others: "bg-ios-gray",
-  "Prize money": "bg-ios-green",
-  Sponsorship: "bg-ios-teal",
-  "Guest player fee": "bg-ios-blue",
-  Donation: "bg-ios-indigo",
-  "MoM award": "bg-ios-yellow",
+  Income: "bg-ios-green",
 };

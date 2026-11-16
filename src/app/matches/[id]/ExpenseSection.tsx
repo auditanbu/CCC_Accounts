@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ExpenseForm, type MoneyLineKind } from "@/app/matches/[id]/ExpenseForm";
+import { ExpenseForm } from "@/app/matches/[id]/ExpenseForm";
 import { deleteExpenseAction, deleteIncomeAction } from "@/app/actions/matches";
 import { EmptyState } from "@/components/ui/Card";
 import { ConfirmSubmit } from "@/components/ui/Form";
@@ -12,40 +12,25 @@ import { formatMoney } from "@/lib/format";
 
 export type ExpenseRow = { id: number; category: string; note: string | null; amount: number };
 
-const SECTION_COPY = {
-  expense: {
-    deleteAction: deleteExpenseAction,
-    emptyIcon: "🧾",
-    emptyTitle: "No expenses recorded",
-    emptyEdit: "Add ball fee, ground fee, water and anything else spent on this match.",
-    emptyView: "Nothing has been spent on this match yet.",
-    noun: "expense",
-  },
-  income: {
-    deleteAction: deleteIncomeAction,
-    emptyIcon: "💰",
-    emptyTitle: "No income recorded",
-    emptyEdit: "Add prize money, sponsorship, guest player fees and any other money received.",
-    emptyView: "No other income has been received for this match.",
-    noun: "income",
-  },
-} as const;
-
 export function ExpenseSection({
   matchId,
   expenses,
+  incomes = [],
   admin,
-  kind = "expense",
 }: {
   matchId: number;
-  /** The rows to list — expense or income lines, per `kind`. */
   expenses: ExpenseRow[];
+  /** Money received for the match — listed with the expenses, shown in green. */
+  incomes?: ExpenseRow[];
   admin: boolean;
-  kind?: MoneyLineKind;
 }) {
-  const copy = SECTION_COPY[kind];
   const [editing, setEditing] = useState(false);
   const canEdit = admin && editing;
+
+  const rows = [
+    ...expenses.map((e) => ({ ...e, income: false })),
+    ...incomes.map((e) => ({ ...e, income: true })),
+  ];
 
   return (
     <div className="space-y-3">
@@ -68,21 +53,23 @@ export function ExpenseSection({
         </div>
       ) : null}
 
-      {expenses.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
-          icon={copy.emptyIcon}
-          title={copy.emptyTitle}
+          icon="🧾"
+          title="No expenses recorded"
           description={
-canEdit ? copy.emptyEdit : copy.emptyView
+            canEdit
+              ? "Add ball fee, ground fee, water and anything else spent on this match."
+              : "Nothing has been spent on this match yet."
           }
         />
       ) : (
         <ul className="list-group">
-          {expenses.map((e) => (
-            <li key={e.id} className="list-row">
+          {rows.map((e) => (
+            <li key={`${e.income ? "i" : "e"}${e.id}`} className="list-row">
               <span
                 className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                  CATEGORY_COLORS[e.category] ?? "bg-ios-gray"
+                  e.income ? "bg-ios-green" : (CATEGORY_COLORS[e.category] ?? "bg-ios-gray")
                 }`}
                 aria-hidden
               />
@@ -92,18 +79,26 @@ canEdit ? copy.emptyEdit : copy.emptyView
                   <span className="block truncate text-[12px] text-label-secondary">{e.note}</span>
                 ) : null}
               </span>
-              <span className="tnum shrink-0 text-[15px] font-semibold">
+              <span
+                className={`tnum shrink-0 text-[15px] font-semibold ${
+                  e.income ? "text-[#248A3D]" : ""
+                }`}
+              >
+                {e.income ? "+ " : ""}
                 {formatMoney(e.amount)}
               </span>
               {canEdit ? (
-                <form action={copy.deleteAction} className="shrink-0">
+                <form
+                  action={e.income ? deleteIncomeAction : deleteExpenseAction}
+                  className="shrink-0"
+                >
                   <input type="hidden" name="id" value={e.id} />
                   <ConfirmSubmit
-                    message={`Delete the ${e.category} ${copy.noun} of ${formatMoney(e.amount)}?`}
+                    message={`Delete the ${e.category} ${e.income ? "entry" : "expense"} of ${formatMoney(e.amount)}?`}
                     className="btn btn-sm -mr-1.5 px-1.5 text-label-tertiary hover:text-ios-red"
                   >
                     <TrashIcon width={17} height={17} />
-                    <span className="sr-only">Delete {copy.noun}</span>
+                    <span className="sr-only">Delete {e.income ? "income" : "expense"}</span>
                   </ConfirmSubmit>
                 </form>
               ) : null}
@@ -112,7 +107,7 @@ canEdit ? copy.emptyEdit : copy.emptyView
         </ul>
       )}
 
-      {canEdit ? <ExpenseForm matchId={matchId} kind={kind} /> : null}
+      {canEdit ? <ExpenseForm matchId={matchId} /> : null}
     </div>
   );
 }

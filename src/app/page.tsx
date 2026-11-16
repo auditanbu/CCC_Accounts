@@ -8,7 +8,6 @@ import { CATEGORY_COLORS, TEAM_NAME } from "@/lib/constants";
 import { avatarLabel, formatDate, formatMoney, formatTime } from "@/lib/format";
 import {
   getExpenseBreakdown,
-  getIncomeBreakdown,
   getPlayerPendings,
   getRecentMatches,
   getTeamSummary,
@@ -20,14 +19,13 @@ import { isAdmin } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [summary, recent, upcoming, players, breakdown, incomeBreakdown, tournaments, admin] =
+  const [summary, recent, upcoming, players, breakdown, tournaments, admin] =
     await Promise.all([
       getTeamSummary(),
       getRecentMatches(3),
       getUpcomingMatches(3),
       getPlayerPendings(),
       getExpenseBreakdown(),
-      getIncomeBreakdown(),
       getTournamentOutstandings(),
       isAdmin(),
     ]);
@@ -39,8 +37,6 @@ export default async function DashboardPage() {
 
   const topExpenses = breakdown.slice(0, 5);
   const maxExpense = topExpenses[0]?.amount ?? 0;
-  const topIncome = incomeBreakdown.slice(0, 5);
-  const maxIncome = topIncome[0]?.amount ?? 0;
   const openTournaments = tournaments.filter((t) => t.outstanding > 0);
 
   return (
@@ -60,18 +56,12 @@ export default async function DashboardPage() {
         </p>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Collected"
           value={summary.totalCollected}
           accent="bg-ios-green"
           caption="All matches"
-        />
-        <StatCard
-          label="Other income"
-          value={summary.totalIncome}
-          accent="bg-ios-teal"
-          caption="Prize money, sponsors…"
         />
         <StatCard
           label="Expenses"
@@ -271,36 +261,6 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ul>
-        </Section>
-      ) : null}
-
-      {/* Where the money came from */}
-      {topIncome.length > 0 ? (
-        <Section title="Where the money came from">
-          <div className="card-pad space-y-3">
-            {topIncome.map((e) => (
-              <div key={e.category}>
-                <div className="mb-1 flex items-baseline justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2 text-[14px]">
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_COLORS[e.category] ?? "bg-ios-gray"}`}
-                      aria-hidden
-                    />
-                    <span className="truncate">{e.category}</span>
-                  </span>
-                  <span className="tnum shrink-0 text-[14px] font-semibold">
-                    {formatMoney(e.amount)}
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.06]">
-                  <div
-                    className={`h-full rounded-full ${CATEGORY_COLORS[e.category] ?? "bg-ios-gray"}`}
-                    style={{ width: `${maxIncome > 0 ? (e.amount / maxIncome) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
         </Section>
       ) : null}
 
