@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { EXPENSE_CATEGORIES, OVERS_OPTIONS } from "@/lib/constants";
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, OVERS_OPTIONS } from "@/lib/constants";
 import { round2 } from "@/lib/format";
 import { type ActionState, runAction } from "@/app/actions/types";
 
@@ -300,33 +300,49 @@ export async function saveRosterAction(
 /* Expenses                                                            */
 /* ------------------------------------------------------------------ */
 
-const expenseSchema = z
-  .object({
-    matchId: z.coerce.number().int(),
-    category: z.string().trim().min(1, "Pick a category."),
-    customCategory: z.string().trim().max(60).optional(),
-    amount: z.coerce.number().positive("Amount must be greater than zero."),
-    note: z
-      .string()
-      .trim()
-      .max(200)
-      .optional()
-      .transform((v) => (v ? v : null)),
-  })
-  .refine(
-    (v) => (v.category as string) !== "Others" || Boolean(v.customCategory?.trim()),
-    { message: "Describe the expense.", path: ["customCategory"] },
-  )
-  .transform((v) => ({
-    matchId: v.matchId,
-    // "Others" is a UI affordance; what gets stored is the typed-in label.
-    category:
-      v.category === "Others" && v.customCategory?.trim()
-        ? v.customCategory.trim()
-        : v.category,
-    amount: round2(v.amount),
-    note: v.note,
-  }));
+/** Shared shape for an itemised money line — expenses and income alike. */
+function moneyLineSchema(describeMessage: string) {
+  return z
+    .object({
+      matchId: z.coerce.number().int(),
+      category: z.string().trim().min(1, "Pick a category."),
+      customCategory: z.string().trim().max(60).optional(),
+      amount: z.coerce.number().positive("Amount must be greater than zero."),
+      note: z
+        .string()
+        .trim()
+        .max(200)
+        .optional()
+        .transform((v) => (v ? v : null)),
+    })
+    .refine(
+      (v) => (v.category as string) !== "Others" || Boolean(v.customCategory?.trim()),
+      { message: describeMessage, path: ["customCategory"] },
+    )
+    .transform((v) => ({
+      matchId: v.matchId,
+      // "Others" is a UI affordance; what gets stored is the typed-in label.
+      category:
+        v.category === "Others" && v.customCategory?.trim()
+          ? v.customCategory.trim()
+          : v.category,
+      amount: round2(v.amount),
+      note: v.note,
+    }));
+}
+
+const expenseSchema = moneyLineSchema("Describe the expense.");
+const incomeSchema = moneyLineSchema("Describe the income.");
+
+function readMoneyLine(formData: FormData) {
+  return {
+    matchId: formData.get("matchId"),
+    category: formData.get("category"),
+    customCategory: formData.get("customCategory") ?? "",
+    amount: formData.get("amount"),
+    note: formData.get("note") ?? "",
+  };
+}
 
 export async function addExpenseAction(
   _prev: ActionState,
@@ -334,13 +350,7 @@ export async function addExpenseAction(
 ): Promise<ActionState> {
   return runAction(async () => {
     await requireAdmin();
-    const data = expenseSchema.parse({
-      matchId: formData.get("matchId"),
-      category: formData.get("category"),
-      customCategory: formData.get("customCategory") ?? "",
-      amount: formData.get("amount"),
-      note: formData.get("note") ?? "",
-    });
+    const data = expenseSchema.parse(readMoneyLine(formData));
 
     const known = (EXPENSE_CATEGORIES as readonly string[]).includes(data.category);
     await prisma.matchExpense.create({ data });
@@ -357,4 +367,33 @@ export async function deleteExpenseAction(formData: FormData): Promise<void> {
   const id = z.coerce.number().int().parse(formData.get("id"));
   const expense = await prisma.matchExpense.delete({ where: { id } });
   revalidateMatch(expense.matchId);
+}
+
+/* ------------------------------------------------------------------ */
+/* Income                                                              */
+/* ------------------------------------------------------------------ */
+
+export async function addIncomeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await requireAdmin();
+    const data = incomeSchema.parse(readMoneyLine(formData));
+
+    const known = (INCOME_CATEGORIES as readonly string[]).includes(data.category);
+    await prisma.matchIncome.create({ data });
+    revalidateMatch(data.matchId);
+    return {
+      ok: true,
+      message: known ? "Income added." : `Added under "${data.category}".`,
+    };
+  });
+}
+
+export async function deleteIncomeAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = z.coerce.number().int().parse(formData.get("id"));
+  const income = await prisma.matchIncome.delete({ where: { id } });
+  revalidateMatch(income.matchId);
 }

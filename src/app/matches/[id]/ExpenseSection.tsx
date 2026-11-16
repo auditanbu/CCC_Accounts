@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { ExpenseForm } from "@/app/matches/[id]/ExpenseForm";
-import { deleteExpenseAction } from "@/app/actions/matches";
+import { ExpenseForm, type MoneyLineKind } from "@/app/matches/[id]/ExpenseForm";
+import { deleteExpenseAction, deleteIncomeAction } from "@/app/actions/matches";
 import { EmptyState } from "@/components/ui/Card";
 import { ConfirmSubmit } from "@/components/ui/Form";
 import { PencilIcon, TrashIcon } from "@/components/ui/Icons";
@@ -12,15 +12,38 @@ import { formatMoney } from "@/lib/format";
 
 export type ExpenseRow = { id: number; category: string; note: string | null; amount: number };
 
+const SECTION_COPY = {
+  expense: {
+    deleteAction: deleteExpenseAction,
+    emptyIcon: "🧾",
+    emptyTitle: "No expenses recorded",
+    emptyEdit: "Add ball fee, ground fee, water and anything else spent on this match.",
+    emptyView: "Nothing has been spent on this match yet.",
+    noun: "expense",
+  },
+  income: {
+    deleteAction: deleteIncomeAction,
+    emptyIcon: "💰",
+    emptyTitle: "No income recorded",
+    emptyEdit: "Add prize money, sponsorship, guest player fees and any other money received.",
+    emptyView: "No other income has been received for this match.",
+    noun: "income",
+  },
+} as const;
+
 export function ExpenseSection({
   matchId,
   expenses,
   admin,
+  kind = "expense",
 }: {
   matchId: number;
+  /** The rows to list — expense or income lines, per `kind`. */
   expenses: ExpenseRow[];
   admin: boolean;
+  kind?: MoneyLineKind;
 }) {
+  const copy = SECTION_COPY[kind];
   const [editing, setEditing] = useState(false);
   const canEdit = admin && editing;
 
@@ -33,20 +56,24 @@ export function ExpenseSection({
             onClick={() => setEditing((v) => !v)}
             className="btn-secondary btn-sm"
           >
-            <PencilIcon width={15} height={15} />
-            {editing ? "Done" : "Edit"}
+            {editing ? (
+              "Done"
+            ) : (
+              <>
+                <PencilIcon width={15} height={15} />
+                Edit
+              </>
+            )}
           </button>
         </div>
       ) : null}
 
       {expenses.length === 0 ? (
         <EmptyState
-          icon="🧾"
-          title="No expenses recorded"
+          icon={copy.emptyIcon}
+          title={copy.emptyTitle}
           description={
-            canEdit
-              ? "Add ball fee, ground fee, water and anything else spent on this match."
-              : "Nothing has been spent on this match yet."
+canEdit ? copy.emptyEdit : copy.emptyView
           }
         />
       ) : (
@@ -69,14 +96,14 @@ export function ExpenseSection({
                 {formatMoney(e.amount)}
               </span>
               {canEdit ? (
-                <form action={deleteExpenseAction} className="shrink-0">
+                <form action={copy.deleteAction} className="shrink-0">
                   <input type="hidden" name="id" value={e.id} />
                   <ConfirmSubmit
-                    message={`Delete the ${e.category} expense of ${formatMoney(e.amount)}?`}
+                    message={`Delete the ${e.category} ${copy.noun} of ${formatMoney(e.amount)}?`}
                     className="btn btn-sm -mr-1.5 px-1.5 text-label-tertiary hover:text-ios-red"
                   >
                     <TrashIcon width={17} height={17} />
-                    <span className="sr-only">Delete expense</span>
+                    <span className="sr-only">Delete {copy.noun}</span>
                   </ConfirmSubmit>
                 </form>
               ) : null}
@@ -85,7 +112,7 @@ export function ExpenseSection({
         </ul>
       )}
 
-      {canEdit ? <ExpenseForm matchId={matchId} /> : null}
+      {canEdit ? <ExpenseForm matchId={matchId} kind={kind} /> : null}
     </div>
   );
 }

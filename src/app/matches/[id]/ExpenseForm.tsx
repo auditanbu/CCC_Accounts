@@ -2,24 +2,50 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 
-import { addExpenseAction } from "@/app/actions/matches";
+import { addExpenseAction, addIncomeAction } from "@/app/actions/matches";
 import { idleState } from "@/app/actions/types";
 import { Field, FormMessage, SubmitButton } from "@/components/ui/Form";
 import { PlusIcon } from "@/components/ui/Icons";
-import { EXPENSE_CATEGORIES } from "@/lib/constants";
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
 
-export function ExpenseForm({ matchId }: { matchId: number }) {
-  const [state, action] = useActionState(addExpenseAction, idleState);
-  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+export type MoneyLineKind = "expense" | "income";
+
+const FORM_COPY = {
+  expense: {
+    action: addExpenseAction,
+    categories: EXPENSE_CATEGORIES as readonly string[],
+    otherPlaceholder: "e.g. Kit repair",
+    notePlaceholder: "Who paid, receipt no., etc.",
+    button: "Add expense",
+  },
+  income: {
+    action: addIncomeAction,
+    categories: INCOME_CATEGORIES as readonly string[],
+    otherPlaceholder: "e.g. Old balls sold",
+    notePlaceholder: "Who gave it, received by, etc.",
+    button: "Add income",
+  },
+} as const;
+
+export function ExpenseForm({
+  matchId,
+  kind = "expense",
+}: {
+  matchId: number;
+  kind?: MoneyLineKind;
+}) {
+  const copy = FORM_COPY[kind];
+  const [state, action] = useActionState(copy.action, idleState);
+  const [category, setCategory] = useState<string>(copy.categories[0]);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Clear the row after a successful add so the next one can be typed straight in.
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
-      setCategory(EXPENSE_CATEGORIES[0]);
+      setCategory(copy.categories[0]);
     }
-  }, [state]);
+  }, [state, copy]);
 
   const err = state.fieldErrors ?? {};
 
@@ -28,15 +54,15 @@ export function ExpenseForm({ matchId }: { matchId: number }) {
       <input type="hidden" name="matchId" value={matchId} />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Category" htmlFor="category" error={err.category}>
+        <Field label="Category" htmlFor={`${kind}-category`} error={err.category}>
           <select
-            id="category"
+            id={`${kind}-category`}
             name="category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="select"
           >
-            {EXPENSE_CATEGORIES.map((c) => (
+            {copy.categories.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
@@ -44,9 +70,9 @@ export function ExpenseForm({ matchId }: { matchId: number }) {
           </select>
         </Field>
 
-        <Field label="Amount ₹" htmlFor="amount" error={err.amount}>
+        <Field label="Amount ₹" htmlFor={`${kind}-amount`} error={err.amount}>
           <input
-            id="amount"
+            id={`${kind}-amount`}
             name="amount"
             type="number"
             inputMode="decimal"
@@ -62,17 +88,17 @@ export function ExpenseForm({ matchId }: { matchId: number }) {
       {category === "Others" ? (
         <Field
           label="Describe it"
-          htmlFor="customCategory"
+          htmlFor={`${kind}-customCategory`}
           error={err.customCategory}
           hint="Saved as its own category so it groups in reports."
           className="animate-fade-in-up"
         >
           <input
-            id="customCategory"
+            id={`${kind}-customCategory`}
             name="customCategory"
             type="text"
             maxLength={60}
-            placeholder="e.g. Kit repair"
+            placeholder={copy.otherPlaceholder}
             className="input"
           />
         </Field>
@@ -80,13 +106,13 @@ export function ExpenseForm({ matchId }: { matchId: number }) {
         <input type="hidden" name="customCategory" value="" />
       )}
 
-      <Field label="Note" htmlFor="note" error={err.note} hint="Optional.">
+      <Field label="Note" htmlFor={`${kind}-note`} error={err.note} hint="Optional.">
         <input
-          id="note"
+          id={`${kind}-note`}
           name="note"
           type="text"
           maxLength={200}
-          placeholder="Who paid, receipt no., etc."
+          placeholder={copy.notePlaceholder}
           className="input"
         />
       </Field>
@@ -95,7 +121,7 @@ export function ExpenseForm({ matchId }: { matchId: number }) {
 
       <SubmitButton className="btn-primary w-full sm:w-auto">
         <PlusIcon width={17} height={17} strokeWidth={2.2} />
-        Add expense
+        {copy.button}
       </SubmitButton>
     </form>
   );

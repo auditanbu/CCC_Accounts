@@ -359,6 +359,7 @@ async function main() {
     // Rebuild the child rows so re-seeding never double-counts money.
     await prisma.matchPlayer.deleteMany({ where: { matchId: match.id } });
     await prisma.matchExpense.deleteMany({ where: { matchId: match.id } });
+    await prisma.matchIncome.deleteMany({ where: { matchId: match.id } });
 
     if (m.squad?.length) {
       const unpaid = new Set(m.unpaid ?? []);

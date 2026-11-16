@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   getExpenseBreakdown,
+  getIncomeBreakdown,
   getOutstandingPlayers,
   getRecentMatches,
   getTeamSummary,
@@ -86,6 +87,7 @@ export async function GET() {
     matches: await prisma.match.count(),
     rosterRows: await prisma.matchPlayer.count(),
     expenses: await prisma.matchExpense.count(),
+    incomes: await prisma.matchIncome.count(),
   })));
 
   steps.push(await step("session-isAdmin", () => isAdmin()));
@@ -94,6 +96,7 @@ export async function GET() {
   steps.push(await step("getUpcomingMatches", () => getUpcomingMatches(3)));
   steps.push(await step("getOutstandingPlayers", () => getOutstandingPlayers()));
   steps.push(await step("getExpenseBreakdown", () => getExpenseBreakdown()));
+  steps.push(await step("getIncomeBreakdown", () => getIncomeBreakdown()));
   steps.push(await step("getTournamentOutstandings", () => getTournamentOutstandings()));
 
   const failed = steps.filter((s) => !s.ok);

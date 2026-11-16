@@ -115,12 +115,15 @@ export function RosterEditor({
   matchId,
   rows,
   lastMatchPlayerIds = [],
+  lastMatchLabel,
   forceEdit = false,
 }: {
   matchId: number;
   rows: RosterRow[];
   /** Players who turned out in the previous match — pinned to the top when selecting. */
   lastMatchPlayerIds?: number[];
+  /** Which match those players are from, e.g. "vs Adyar Aces · Sun, 2 Nov". */
+  lastMatchLabel?: string;
   /** Opens straight into squad edit mode — used right after creating a new match. */
   forceEdit?: boolean;
 }) {
@@ -230,7 +233,7 @@ export function RosterEditor({
     const lastSet = new Set(lastMatchPlayerIds);
     const last = allRows.filter((r) => lastSet.has(r.playerId)).sort(byName);
     const rest = allRows.filter((r) => !lastSet.has(r.playerId)).sort(byName);
-    return [...last, ...rest];
+    return { last, rest };
   }, [allRows, lastMatchPlayerIds]);
 
   // Collection step: plain alphabetical, present players only — the "who
@@ -361,10 +364,25 @@ export function RosterEditor({
         ) : (
           <div className="space-y-3">
             <ul className="list-group">
-              {attendanceOrder.map((row) => {
+              {[...attendanceOrder.last, ...attendanceOrder.rest].map((row, i) => {
                 const d = drafts[row.playerId]!;
+                // Group headings: last match's XI first, then everyone else.
+                const heading =
+                  attendanceOrder.last.length === 0
+                    ? null
+                    : i === 0
+                      ? `Played last match${lastMatchLabel ? ` · ${lastMatchLabel}` : ""}`
+                      : i === attendanceOrder.last.length
+                        ? "Other players"
+                        : null;
                 return (
-                  <li key={row.playerId} className="px-4 py-3">
+                  <Fragment key={row.playerId}>
+                  {heading ? (
+                    <li className="bg-black/[0.03] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
+                      {heading}
+                    </li>
+                  ) : null}
+                  <li className="px-4 py-3">
                     <label className="flex cursor-pointer items-center gap-3">
                       <input
                         type="checkbox"
@@ -389,6 +407,7 @@ export function RosterEditor({
                       </span>
                     </label>
                   </li>
+                  </Fragment>
                 );
               })}
               <li className="px-4 py-3">
@@ -411,6 +430,11 @@ export function RosterEditor({
                     <Avatar name={row.name} jerseyNumber={row.jerseyNumber} active />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{row.name}</span>
+                      {row.payableAmount !== row.defaultMatchFee ? (
+                        <span className="block text-[12px] font-medium text-ios-indigo">
+                          Due changed from {formatMoney(row.defaultMatchFee)}
+                        </span>
+                      ) : null}
                       {row.paymentMode ? (
                         <span className="block text-[12px] text-label-secondary">
                           paid by {row.paymentMode === "UPI" ? "UPI" : "cash"}
@@ -448,9 +472,11 @@ export function RosterEditor({
                 const modeLabel = pending ? "Pending" : d.mode === "CASH" ? "Cash" : "UPI";
                 // Saved balance, moved by whatever is being typed in right now
                 // so the figure reflects this entry before it's saved.
+                const due = d.payable === "" ? row.defaultMatchFee : num(d.payable);
+                const dueChanged = due !== row.defaultMatchFee;
                 const outstanding = round2(
                   row.outstanding +
-                    ((d.present ? num(d.payable) : 0) - (row.isPresent ? row.payableAmount : 0)) -
+                    ((d.present ? due : 0) - (row.isPresent ? row.payableAmount : 0)) -
                     (num(d.collected) - row.collectedAmount),
                 );
                 return (
@@ -499,6 +525,50 @@ export function RosterEditor({
                       >
                         {modeLabel}
                       </button>
+                    </div>
+                    {/* Due for this match — defaults to the player's fee, but can be
+                        lowered (didn't bat or bowl) or raised (paying for a friend). */}
+                    <div className="mt-1.5 flex items-center gap-2 pl-[46px]">
+                      <label
+                        htmlFor={`due-${row.playerId}`}
+                        className="shrink-0 whitespace-nowrap text-[12px] font-medium text-label-secondary"
+                      >
+                        Due ₹
+                      </label>
+                      <input
+                        id={`due-${row.playerId}`}
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="1"
+                        placeholder={String(row.defaultMatchFee)}
+                        aria-label={`Due from ${row.name}`}
+                        value={d.payable}
+                        onChange={(e) => update(row.playerId, { payable: e.target.value })}
+                        className={`input w-[4.25rem] shrink-0 px-2 py-1 text-right text-[14px] tnum ${
+                          dueChanged ? "text-ios-indigo" : ""
+                        }`}
+                      />
+                      {due !== 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => update(row.playerId, { payable: "0" })}
+                          className="btn btn-sm shrink-0 whitespace-nowrap bg-black/[0.05] px-2.5 text-[12px] text-label-secondary"
+                        >
+                          No fee
+                        </button>
+                      ) : null}
+                      {dueChanged ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            update(row.playerId, { payable: String(row.defaultMatchFee) })
+                          }
+                          className="btn btn-sm shrink-0 whitespace-nowrap px-1.5 text-[12px] text-ios-blue"
+                        >
+                          Reset
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 );
