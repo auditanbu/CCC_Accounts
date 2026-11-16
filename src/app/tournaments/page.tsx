@@ -93,6 +93,11 @@ function TournamentCard({
             <dd className="text-[15px] font-semibold">
               <Money value={t.collection} />
             </dd>
+            {t.income > 0 ? (
+              <dd className="tnum text-[11px] font-medium text-ios-green">
+                + {formatMoney(t.income)} income
+              </dd>
+            ) : null}
           </div>
           <div>
             <dt className="text-[11px] font-medium uppercase tracking-wide text-label-secondary">

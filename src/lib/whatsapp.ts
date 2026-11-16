@@ -8,6 +8,9 @@ export type WhatsAppSummaryInput = {
   /** Scorecard link, when the match has one recorded. */
   cricheroesUrl?: string | null;
   matchCollection: number;
+  /** Other money in for the match — prize money, sponsorship and so on. */
+  matchIncome?: number;
+  incomeItems?: { category: string; note?: string | null; amount: number }[];
   matchExpenses: number;
   /** Individual expense lines, itemised under the expenses total. */
   expenseItems?: { category: string; note?: string | null; amount: number }[];
@@ -32,14 +35,14 @@ export function buildWhatsAppSummary(input: WhatsAppSummaryInput): string {
   lines.push("");
   lines.push("💰 *Match Accounts:*");
   lines.push(`Total Collection: ₹${formatAmount(input.matchCollection)}`);
+  if ((input.matchIncome ?? 0) > 0) {
+    lines.push(`Other Income: ₹${formatAmount(input.matchIncome ?? 0)}`);
+    pushItems(lines, input.incomeItems);
+  }
   lines.push(`Total Expenses: ₹${formatAmount(input.matchExpenses)}`);
   // Itemised breakdown sits directly under the total so the group can see
   // what the money went on without opening the app.
-  for (const e of input.expenseItems ?? []) {
-    const note = e.note?.trim();
-    const label = note ? `${e.category} (${note})` : e.category;
-    lines.push(`  • ${label}: ₹${formatAmount(e.amount)}`);
-  }
+  pushItems(lines, input.expenseItems);
   lines.push(`Net Match Balance: ₹${formatAmount(input.netAmount)}`);
   lines.push("");
   lines.push(`📊 *Current Team Balance:* ₹${formatAmount(input.teamBalance)}`);
@@ -71,4 +74,15 @@ export function buildWhatsAppSummary(input: WhatsAppSummaryInput): string {
   }
 
   return lines.join("\n");
+}
+
+function pushItems(
+  lines: string[],
+  items: { category: string; note?: string | null; amount: number }[] | undefined,
+) {
+  for (const e of items ?? []) {
+    const note = e.note?.trim();
+    const label = note ? `${e.category} (${note})` : e.category;
+    lines.push(`  • ${label}: ₹${formatAmount(e.amount)}`);
+  }
 }

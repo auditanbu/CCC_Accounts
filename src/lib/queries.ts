@@ -29,7 +29,9 @@ export type TeamSummary = {
   totalPayable: number;
   totalCollected: number;
   totalExpenses: number;
-  /** Collections minus expenses — cash the team actually holds. */
+  /** Other money in for matches — prize money, sponsorship and so on. */
+  totalIncome: number;
+  /** Collections plus income minus expenses — cash the team actually holds. */
   teamBalance: number;
   /** Everything still owed by players across every match. */
   totalPending: number;
@@ -41,12 +43,20 @@ export type TeamSummary = {
 export async function getTeamSummary(): Promise<TeamSummary> {
   const today = startOfTodayIST();
 
-  const [playerAgg, expenseAgg, playedCount, upcomingCount, activePlayers, openingAgg] =
-    await Promise.all([
+  const [
+    playerAgg,
+    expenseAgg,
+    incomeAgg,
+    playedCount,
+    upcomingCount,
+    activePlayers,
+    openingAgg,
+  ] = await Promise.all([
       prisma.matchPlayer.aggregate({
         _sum: { payableAmount: true, collectedAmount: true },
       }),
       prisma.matchExpense.aggregate({ _sum: { amount: true } }),
+      prisma.matchIncome.aggregate({ _sum: { amount: true } }),
       prisma.match.count({ where: { date: { lt: today } } }),
       prisma.match.count({ where: { date: { gte: today } } }),
       prisma.player.count({ where: { status: "ACTIVE" } }),
@@ -56,15 +66,17 @@ export async function getTeamSummary(): Promise<TeamSummary> {
   const totalPayable = round2(playerAgg._sum.payableAmount ?? 0);
   const totalCollected = round2(playerAgg._sum.collectedAmount ?? 0);
   const totalExpenses = round2(expenseAgg._sum.amount ?? 0);
+  const totalIncome = round2(incomeAgg._sum.amount ?? 0);
   const totalOpening = round2(openingAgg._sum.openingBalance ?? 0);
 
   return {
     totalPayable,
     totalCollected,
     totalExpenses,
+    totalIncome,
     // Brought-forward balances are money owed, not money held, so they move
     // the pending figure but never the team's cash balance.
-    teamBalance: round2(totalCollected - totalExpenses),
+    teamBalance: round2(totalCollected + totalIncome - totalExpenses),
     totalPending: round2(totalOpening + totalPayable - totalCollected),
     matchesPlayed: playedCount,
     upcomingCount,
@@ -72,13 +84,18 @@ export async function getTeamSummary(): Promise<TeamSummary> {
   };
 }
 
-/** Formula 2: total collected across all matches − total expenses. */
+/** Formula 2: total collected + other income across all matches − total expenses. */
 export async function getTeamBalance(): Promise<number> {
-  const [collected, expenses] = await Promise.all([
+  const [collected, income, expenses] = await Promise.all([
     prisma.matchPlayer.aggregate({ _sum: { collectedAmount: true } }),
+    prisma.matchIncome.aggregate({ _sum: { amount: true } }),
     prisma.matchExpense.aggregate({ _sum: { amount: true } }),
   ]);
-  return round2((collected._sum.collectedAmount ?? 0) - (expenses._sum.amount ?? 0));
+  return round2(
+    (collected._sum.collectedAmount ?? 0) +
+      (income._sum.amount ?? 0) -
+      (expenses._sum.amount ?? 0),
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -193,8 +210,10 @@ export type MatchTotals = {
   collection: number;
   payable: number;
   pending: number;
+  /** Other money in for this fixture — prize money, sponsorship and so on. */
+  income: number;
   expenses: number;
-  /** Formula 3: collection − expenses for this fixture alone. */
+  /** Formula 3: collection + income − expenses for this fixture alone. */
   net: number;
   presentCount: number;
 };
@@ -202,16 +221,19 @@ export type MatchTotals = {
 export function computeMatchTotals(match: {
   players: { payableAmount: number; collectedAmount: number; isPresent: boolean }[];
   expenses: { amount: number }[];
+  incomes: { amount: number }[];
 }): MatchTotals {
   const collection = round2(match.players.reduce((s, p) => s + p.collectedAmount, 0));
   const payable = round2(match.players.reduce((s, p) => s + p.payableAmount, 0));
   const expenses = round2(match.expenses.reduce((s, e) => s + e.amount, 0));
+  const income = round2(match.incomes.reduce((s, e) => s + e.amount, 0));
   return {
     collection,
     payable,
     pending: round2(payable - collection),
+    income,
     expenses,
-    net: round2(collection - expenses),
+    net: round2(collection + income - expenses),
     presentCount: match.players.filter((p) => p.isPresent).length,
   };
 }
@@ -221,6 +243,7 @@ const matchListInclude = {
   tournament: true,
   players: { select: { payableAmount: true, collectedAmount: true, isPresent: true } },
   expenses: { select: { amount: true } },
+  incomes: { select: { amount: true } },
 } as const;
 
 export async function getMatchesSplit(tournamentId?: number) {
@@ -287,6 +310,7 @@ export async function getMatchDetail(matchId: number) {
       ground: true,
       tournament: true,
       expenses: { orderBy: { id: "asc" } },
+      incomes: { orderBy: { id: "asc" } },
       players: {
         include: { player: true },
         orderBy: [{ isPresent: "desc" }, { player: { jerseyNumber: "asc" } }],
@@ -338,6 +362,7 @@ export type TournamentOutstanding = {
   totalMatches: number | null;
   grounds: { id: number; name: string; location: string | null }[];
   collection: number;
+  income: number;
   expenses: number;
   net: number;
   /** Fixture-by-fixture detail, in playing order. */
@@ -352,6 +377,7 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
         include: {
           players: { select: { collectedAmount: true } },
           expenses: { select: { amount: true, category: true } },
+          incomes: { select: { amount: true } },
         },
       },
     },
@@ -362,10 +388,12 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
     let feePaid = 0;
     let collection = 0;
     let expenses = 0;
+    let income = 0;
     const matchRows: TournamentMatchRow[] = [];
 
     for (const match of t.matches) {
       for (const p of match.players) collection += p.collectedAmount;
+      for (const i of match.incomes) income += i.amount;
       let matchFee = 0;
       for (const e of match.expenses) {
         expenses += e.amount;
@@ -406,8 +434,9 @@ export async function getTournamentOutstandings(): Promise<TournamentOutstanding
       totalMatches: t.totalMatches,
       grounds: t.grounds,
       collection: round2(collection),
+      income: round2(income),
       expenses: round2(expenses),
-      net: round2(collection - expenses),
+      net: round2(collection + income - expenses),
       matches: matchRows,
     };
   });
@@ -537,6 +566,15 @@ export async function getGroundsWithMatches(): Promise<GroundWithMatches[]> {
 
 export async function getExpenseBreakdown(): Promise<{ category: string; amount: number }[]> {
   const grouped = await prisma.matchExpense.groupBy({
+    by: ["category"],
+    _sum: { amount: true },
+    orderBy: { _sum: { amount: "desc" } },
+  });
+  return grouped.map((g) => ({ category: g.category, amount: round2(g._sum.amount ?? 0) }));
+}
+
+export async function getIncomeBreakdown(): Promise<{ category: string; amount: number }[]> {
+  const grouped = await prisma.matchIncome.groupBy({
     by: ["category"],
     _sum: { amount: true },
     orderBy: { _sum: { amount: "desc" } },

@@ -118,6 +118,7 @@ model Match {
   notes         String?
   players       MatchPlayer[]
   expenses      MatchExpense[]
+  incomes       MatchIncome[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -144,6 +145,23 @@ model MatchPlayer {
 }
 
 model MatchExpense {
+  id        Int      @id @default(autoincrement())
+  matchId   Int
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  /// One of the predefined categories, or free text when "Others" is picked.
+  category  String
+  amount    Float
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matchId])
+  @@index([category])
+}
+
+/// Money the team received for a match beyond players' match fees —
+/// prize money, sponsorship, a guest player's fee and the like.
+model MatchIncome {
   id        Int      @id @default(autoincrement())
   matchId   Int
   match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)

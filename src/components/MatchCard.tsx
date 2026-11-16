@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Money } from "@/components/ui/Money";
 import { ChevronRightIcon } from "@/components/ui/Icons";
 import { TEAM_NAME } from "@/lib/constants";
-import { formatDate, formatTime, relativeDay } from "@/lib/format";
+import { formatDate, formatMoney, formatTime, relativeDay } from "@/lib/format";
 
 export type MatchResult = "WIN" | "LOSS" | "TIE" | "NO_RESULT";
 
@@ -17,7 +17,13 @@ export type MatchCardData = {
   ground: { name: string; location?: string | null };
   tournament: { name: string } | null;
   result?: MatchResult | null;
-  totals?: { collection: number; expenses: number; net: number; presentCount: number };
+  totals?: {
+    collection: number;
+    income: number;
+    expenses: number;
+    net: number;
+    presentCount: number;
+  };
 };
 
 export function MatchTypeBadge({ type }: { type: "TOURNAMENT" | "PRACTICE" }) {
@@ -47,7 +53,7 @@ export function ResultBadge({ result }: { result: MatchResult }) {
 
 export function MatchCard({ match, showMoney = true }: { match: MatchCardData; showMoney?: boolean }) {
   const t = match.totals;
-  const hasMoney = showMoney && t && (t.collection > 0 || t.expenses > 0);
+  const hasMoney = showMoney && t && (t.collection > 0 || t.income > 0 || t.expenses > 0);
 
   return (
     <Link
@@ -92,6 +98,11 @@ export function MatchCard({ match, showMoney = true }: { match: MatchCardData; s
             <dd className="text-[15px] font-semibold">
               <Money value={t.collection} />
             </dd>
+            {t.income > 0 ? (
+              <dd className="tnum text-[11px] font-medium text-ios-green">
+                + {formatMoney(t.income)} income
+              </dd>
+            ) : null}
           </div>
           <div>
             <dt className="text-[11px] font-medium uppercase tracking-wide text-label-secondary">

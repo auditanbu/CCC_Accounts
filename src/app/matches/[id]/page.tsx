@@ -104,6 +104,12 @@ export default async function MatchDetailPage({
     groundName: match.ground.name,
     cricheroesUrl: match.cricheroesUrl,
     matchCollection: totals.collection,
+    matchIncome: totals.income,
+    incomeItems: match.incomes.map((e) => ({
+      category: e.category,
+      note: e.note,
+      amount: e.amount,
+    })),
     matchExpenses: totals.expenses,
     expenseItems: match.expenses.map((e) => ({
       category: e.category,
@@ -240,12 +246,28 @@ export default async function MatchDetailPage({
             </div>
           </div>
 
+          <div className="flex items-baseline justify-between gap-3 border-b border-separator/70 px-4 py-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
+                Other income
+              </p>
+              <p className="mt-0.5 text-[12px] text-label-secondary">
+                {match.incomes.length} item{match.incomes.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <p className="text-[18px] font-bold">
+              <Money value={totals.income} />
+            </p>
+          </div>
+
           <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
                 Net match balance
               </p>
-              <p className="mt-0.5 text-[12px] text-label-secondary">Collection − expenses</p>
+              <p className="mt-0.5 text-[12px] text-label-secondary">
+                Collection + income − expenses
+              </p>
             </div>
             <p className="text-[26px] font-bold tracking-[-0.02em]">
               <Money value={totals.net} tone="ledger" />
@@ -338,6 +360,16 @@ export default async function MatchDetailPage({
             })}
           </ul>
         )}
+      </Section>
+
+      {/* Income */}
+      <Section title={`Income · ${formatMoney(totals.income)}`}>
+        <ExpenseSection
+          matchId={match.id}
+          expenses={match.incomes}
+          admin={admin}
+          kind="income"
+        />
       </Section>
 
       {/* Expenses */}
