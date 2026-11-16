@@ -56,8 +56,14 @@ export function ExpenseSection({
             onClick={() => setEditing((v) => !v)}
             className="btn-secondary btn-sm"
           >
-            <PencilIcon width={15} height={15} />
-            {editing ? "Done" : "Edit"}
+            {editing ? (
+              "Done"
+            ) : (
+              <>
+                <PencilIcon width={15} height={15} />
+                Edit
+              </>
+            )}
           </button>
         </div>
       ) : null}
