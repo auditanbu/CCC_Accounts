@@ -115,12 +115,15 @@ export function RosterEditor({
   matchId,
   rows,
   lastMatchPlayerIds = [],
+  lastMatchLabel,
   forceEdit = false,
 }: {
   matchId: number;
   rows: RosterRow[];
   /** Players who turned out in the previous match — pinned to the top when selecting. */
   lastMatchPlayerIds?: number[];
+  /** Which match those players are from, e.g. "vs Adyar Aces · Sun, 2 Nov". */
+  lastMatchLabel?: string;
   /** Opens straight into squad edit mode — used right after creating a new match. */
   forceEdit?: boolean;
 }) {
@@ -230,7 +233,7 @@ export function RosterEditor({
     const lastSet = new Set(lastMatchPlayerIds);
     const last = allRows.filter((r) => lastSet.has(r.playerId)).sort(byName);
     const rest = allRows.filter((r) => !lastSet.has(r.playerId)).sort(byName);
-    return [...last, ...rest];
+    return { last, rest };
   }, [allRows, lastMatchPlayerIds]);
 
   // Collection step: plain alphabetical, present players only — the "who
@@ -361,10 +364,25 @@ export function RosterEditor({
         ) : (
           <div className="space-y-3">
             <ul className="list-group">
-              {attendanceOrder.map((row) => {
+              {[...attendanceOrder.last, ...attendanceOrder.rest].map((row, i) => {
                 const d = drafts[row.playerId]!;
+                // Group headings: last match's XI first, then everyone else.
+                const heading =
+                  attendanceOrder.last.length === 0
+                    ? null
+                    : i === 0
+                      ? `Played last match${lastMatchLabel ? ` · ${lastMatchLabel}` : ""}`
+                      : i === attendanceOrder.last.length
+                        ? "Other players"
+                        : null;
                 return (
-                  <li key={row.playerId} className="px-4 py-3">
+                  <Fragment key={row.playerId}>
+                  {heading ? (
+                    <li className="bg-black/[0.03] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-label-secondary">
+                      {heading}
+                    </li>
+                  ) : null}
+                  <li className="px-4 py-3">
                     <label className="flex cursor-pointer items-center gap-3">
                       <input
                         type="checkbox"
@@ -389,6 +407,7 @@ export function RosterEditor({
                       </span>
                     </label>
                   </li>
+                  </Fragment>
                 );
               })}
               <li className="px-4 py-3">

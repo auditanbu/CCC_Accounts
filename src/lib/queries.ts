@@ -289,18 +289,34 @@ export async function getUpcomingMatches(limit = 5) {
   return matches;
 }
 
+export type LastMatchSquad = { playerIds: number[]; opponentTeam: string; date: Date } | null;
+
 /**
- * Playing XI of the most recently played match before this one — lets the
- * roster editor default a new match sheet to whoever turned out last time.
+ * Playing XI of the most recent match before this one that actually has a
+ * squad recorded — lets the roster editor put whoever turned out last time at
+ * the top. Measured from this match's own date (not today), so it still works
+ * when the previous game was played today, and it skips fixtures whose squad
+ * was never filled in.
  */
-export async function getLastPlayedRosterIds(excludeMatchId: number): Promise<number[]> {
-  const today = startOfTodayIST();
+export async function getLastPlayedRosterIds(
+  excludeMatchId: number,
+  before: Date,
+): Promise<LastMatchSquad> {
   const last = await prisma.match.findFirst({
-    where: { id: { not: excludeMatchId }, date: { lt: today } },
+    where: {
+      id: { not: excludeMatchId },
+      date: { lt: before },
+      players: { some: { isPresent: true } },
+    },
     orderBy: { date: "desc" },
     include: { players: { where: { isPresent: true }, select: { playerId: true } } },
   });
-  return last?.players.map((p) => p.playerId) ?? [];
+  if (!last) return null;
+  return {
+    playerIds: last.players.map((p) => p.playerId),
+    opponentTeam: last.opponentTeam,
+    date: last.date,
+  };
 }
 
 export async function getMatchDetail(matchId: number) {
